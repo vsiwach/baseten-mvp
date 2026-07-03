@@ -1,0 +1,50 @@
+<svg width="680" viewBox="0 0 680 400" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>Incident agent remediation loop with episode recording</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<style>
+  text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .th { font-size: 14px; font-weight: 600; fill: #ffffff; }
+  .ts { font-size: 12px; fill: #d8dee9; }
+  .lg { font-size: 12px; fill: #8a93a6; }
+</style></defs>
+
+<rect x="50" y="50" width="180" height="60" rx="5" fill="#993C1D"/>
+<text x="140" y="75" text-anchor="middle" class="th">SLO breach detected</text>
+<text x="140" y="93" text-anchor="middle" class="ts">≥50% of live samples</text>
+<line x1="230" y1="80" x2="248" y2="80" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="250" y="50" width="180" height="60" rx="5" fill="#534AB7"/>
+<text x="340" y="75" text-anchor="middle" class="th">Incident opened</text>
+<text x="340" y="93" text-anchor="middle" class="ts">MTTR clock starts</text>
+<line x1="430" y1="80" x2="448" y2="80" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="450" y="50" width="180" height="60" rx="5" fill="#534AB7"/>
+<text x="540" y="75" text-anchor="middle" class="th">Quarantine + spill</text>
+<text x="540" y="93" text-anchor="middle" class="ts">never the last pool</text>
+
+<line x1="540" y1="110" x2="540" y2="168" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="450" y="170" width="180" height="60" rx="5" fill="#534AB7"/>
+<text x="540" y="195" text-anchor="middle" class="th">Verify by probing</text>
+<text x="540" y="213" text-anchor="middle" class="ts">1-token TTFT ≤ tier SLO</text>
+<line x1="450" y1="200" x2="432" y2="200" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="250" y="170" width="180" height="60" rx="5" fill="#534AB7"/>
+<text x="340" y="195" text-anchor="middle" class="th">Reinstate</text>
+<text x="340" y="213" text-anchor="middle" class="ts">after 2 clean passes</text>
+<line x1="250" y1="200" x2="232" y2="200" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="50" y="170" width="180" height="60" rx="5" fill="#0F6E56"/>
+<text x="140" y="195" text-anchor="middle" class="th">Resolve</text>
+<text x="140" y="213" text-anchor="middle" class="ts">MTTR to CSV + board</text>
+
+<line x1="540" y1="230" x2="540" y2="288" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+<rect x="450" y="290" width="180" height="60" rx="5" fill="#854F0B"/>
+<text x="540" y="315" text-anchor="middle" class="th">Escalate to on-call</text>
+<text x="540" y="333" text-anchor="middle" class="ts">after 5 failed probes</text>
+
+<line x1="140" y1="230" x2="140" y2="288" stroke="#0F6E56" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#arrow)"/>
+<rect x="50" y="290" width="180" height="60" rx="5" fill="none" stroke="#0F6E56" stroke-width="1.2" stroke-dasharray="5 4"/>
+<text x="140" y="315" text-anchor="middle" class="th" style="fill:#2dd4a7">Episode recorded</text>
+<text x="140" y="333" text-anchor="middle" class="lg">learning/ → RL loop</text>
+
+<text x="250" y="310" class="lg">Allowlist only: quarantine, probe, reinstate,</text>
+<text x="250" y="328" class="lg">resolve, escalate — learning tunes when/how</text>
+<text x="250" y="346" class="lg">fast the agent acts, never what it may do.</text>
+</svg>

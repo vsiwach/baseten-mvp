@@ -1,0 +1,42 @@
+<svg width="680" viewBox="0 0 680 330" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>MTTR with and without the incident agent, live Baseten infrastructure</title>
+<defs><style>
+  text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .t { font-size: 14px; fill: #8a93a6; }
+  .v { font-size: 14px; font-weight: 600; fill: #2dd4a7; }
+  .in { font-size: 12px; fill: #ffd9cc; }
+  .lg { font-size: 12px; fill: #8a93a6; }
+</style></defs>
+<line x1="160" y1="40" x2="160" y2="270" stroke="#8a93a6" stroke-width="0.75"/>
+<line x1="160" y1="270" x2="620" y2="270" stroke="#8a93a6" stroke-width="0.75"/>
+<text x="160" y="292" text-anchor="middle" class="lg">0s</text>
+<text x="248" y="292" text-anchor="middle" class="lg">15s</text>
+<text x="336" y="292" text-anchor="middle" class="lg">30s</text>
+<text x="424" y="292" text-anchor="middle" class="lg">45s</text>
+<text x="512" y="292" text-anchor="middle" class="lg">60s</text>
+<text x="600" y="292" text-anchor="middle" class="lg">75s</text>
+<line x1="248" y1="40" x2="248" y2="270" stroke="#8a93a6" stroke-width="0.5" stroke-dasharray="2 5"/>
+<line x1="336" y1="40" x2="336" y2="270" stroke="#8a93a6" stroke-width="0.5" stroke-dasharray="2 5"/>
+<line x1="424" y1="40" x2="424" y2="270" stroke="#8a93a6" stroke-width="0.5" stroke-dasharray="2 5"/>
+<line x1="512" y1="40" x2="512" y2="270" stroke="#8a93a6" stroke-width="0.5" stroke-dasharray="2 5"/>
+
+<text x="150" y="72" text-anchor="end" class="t">no agent (control)</text>
+<rect x="160" y="56" width="440" height="24" rx="3" fill="#993C1D"/>
+<text x="592" y="72" text-anchor="end" class="in">never detected — unresolved</text>
+
+<text x="150" y="118" text-anchor="end" class="t">latency drill (live)</text>
+<rect x="160" y="102" width="52" height="24" rx="3" fill="#0F6E56"/>
+<text x="220" y="118" class="v">8.8s</text>
+
+<text x="150" y="164" text-anchor="end" class="t">error storm (live)</text>
+<rect x="160" y="148" width="54" height="24" rx="3" fill="#0F6E56"/>
+<text x="222" y="164" class="v">9.2s</text>
+
+<text x="150" y="210" text-anchor="end" class="t">combo drill (live)</text>
+<rect x="160" y="194" width="51" height="24" rx="3" fill="#0F6E56"/>
+<text x="219" y="210" class="v">8.7s</text>
+
+<text x="150" y="256" text-anchor="end" class="t">unscripted flap</text>
+<rect x="160" y="240" width="12" height="24" rx="3" fill="#0F6E56"/>
+<text x="180" y="256" class="v">2.0s</text>
+</svg>

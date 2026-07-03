@@ -1,0 +1,73 @@
+<svg width="680" viewBox="0 0 680 580" xmlns="http://www.w3.org/2000/svg" role="img">
+<title>Architecture: router control plane over Baseten pools</title>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<style>
+  text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; }
+  .th { font-size: 14px; font-weight: 600; fill: #ffffff; }
+  .ts { font-size: 12px; fill: #d8dee9; }
+  .lg { font-size: 12px; fill: #8a93a6; }
+</style></defs>
+
+<rect x="180" y="40" width="150" height="58" rx="5" fill="#3d4455"/>
+<text x="255" y="64" text-anchor="middle" class="th">Client traffic</text>
+<text x="255" y="82" text-anchor="middle" class="ts">OpenAI chat API</text>
+<rect x="390" y="40" width="150" height="58" rx="5" fill="#3d4455"/>
+<text x="465" y="64" text-anchor="middle" class="th">Devboard</text>
+<text x="465" y="82" text-anchor="middle" class="ts">6 live endpoints</text>
+
+<line x1="255" y1="98" x2="255" y2="138" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="465" y1="138" x2="465" y2="98" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="50" y="140" width="580" height="150" rx="5" fill="none" stroke="#8a93a6" stroke-width="1" stroke-dasharray="5 4"/>
+<text x="64" y="166" class="th" fill="#8a93a6" style="fill:#8a93a6">Router — the only public entry</text>
+<rect x="64" y="212" width="136" height="58" rx="5" fill="#5f6678"/>
+<text x="132" y="236" text-anchor="middle" class="th">Routing policy</text>
+<text x="132" y="254" text-anchor="middle" class="ts">cost + affinity</text>
+<rect x="206" y="212" width="136" height="58" rx="5" fill="#5f6678"/>
+<text x="274" y="236" text-anchor="middle" class="th">Health poller</text>
+<text x="274" y="254" text-anchor="middle" class="ts">polls /healthz</text>
+<rect x="348" y="212" width="136" height="58" rx="5" fill="#5f6678"/>
+<text x="416" y="236" text-anchor="middle" class="th">SLO metrics</text>
+<text x="416" y="254" text-anchor="middle" class="ts">TTFT / TPOT window</text>
+<rect x="490" y="212" width="136" height="58" rx="5" fill="#534AB7"/>
+<text x="558" y="236" text-anchor="middle" class="th">Incident agent</text>
+<text x="558" y="254" text-anchor="middle" class="ts">the MTTR loop</text>
+
+<line x1="259" y1="290" x2="259" y2="348" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="409" y1="290" x2="409" y2="348" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="559" y1="290" x2="559" y2="348" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="40" y="350" width="130" height="58" rx="5" fill="#993C1D"/>
+<text x="105" y="374" text-anchor="middle" class="th">Chaos drills</text>
+<text x="105" y="392" text-anchor="middle" class="ts">chaos.py drill</text>
+<line x1="170" y1="379" x2="188" y2="379" stroke="#D85A30" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="190" y="350" width="138" height="58" rx="5" fill="#5f6678"/>
+<text x="259" y="374" text-anchor="middle" class="th">baseten-l4</text>
+<text x="259" y="392" text-anchor="middle" class="ts">proxy, chaos gate</text>
+<rect x="340" y="350" width="138" height="58" rx="5" fill="#5f6678"/>
+<text x="409" y="374" text-anchor="middle" class="th">model-apis</text>
+<text x="409" y="392" text-anchor="middle" class="ts">multi-model mux</text>
+<rect x="490" y="350" width="138" height="58" rx="5" fill="#5f6678"/>
+<text x="559" y="374" text-anchor="middle" class="th">vllm pool</text>
+<text x="559" y="392" text-anchor="middle" class="ts">proxy, chaos gate</text>
+
+<line x1="259" y1="408" x2="259" y2="438" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="409" y1="408" x2="409" y2="438" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+<line x1="559" y1="408" x2="559" y2="438" stroke="#8a93a6" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+<rect x="190" y="440" width="138" height="58" rx="5" fill="#0F6E56"/>
+<text x="259" y="464" text-anchor="middle" class="th">Dedicated T4</text>
+<text x="259" y="482" text-anchor="middle" class="ts">Qwen3-8B AWQ</text>
+<rect x="340" y="440" width="138" height="58" rx="5" fill="#0F6E56"/>
+<text x="409" y="464" text-anchor="middle" class="th">Model APIs</text>
+<text x="409" y="482" text-anchor="middle" class="ts">11 hosted models</text>
+<rect x="490" y="440" width="138" height="58" rx="5" fill="none" stroke="#8a93a6" stroke-width="1" stroke-dasharray="5 4"/>
+<text x="559" y="464" text-anchor="middle" class="th" style="fill:#8a93a6">Any vLLM host</text>
+<text x="559" y="482" text-anchor="middle" class="lg">optional, on demand</text>
+
+<rect x="60" y="530" width="12" height="12" rx="2" fill="#0F6E56"/><text x="80" y="540" class="lg">live on Baseten</text>
+<rect x="200" y="530" width="12" height="12" rx="2" fill="#534AB7"/><text x="220" y="540" class="lg">autonomous agent</text>
+<rect x="360" y="530" width="12" height="12" rx="2" fill="#993C1D"/><text x="380" y="540" class="lg">fault injection</text>
+<rect x="500" y="530" width="12" height="12" rx="2" fill="none" stroke="#8a93a6" stroke-dasharray="3 2"/><text x="520" y="540" class="lg">vendor-neutral slot</text>
+</svg>

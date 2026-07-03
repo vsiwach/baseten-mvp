@@ -1,0 +1,119 @@
+# Backend registry — the router's model catalog. Hand-maintained in this
+# repo (plain config, one entry per servable model). LLM SLO fields:
+# tier picks the SLO row in routing-policy.yaml; engine picks the adapter.
+backends:
+  # The flagship pool: open-weight Qwen3-8B (AWQ int4) on a dedicated
+  # Baseten T4 (deploy/baseten/vllm-truss), spilling to the Model APIs.
+  qwen3-8b:
+    tier: realtime          # voice SLO: TTFT p99<500ms, TPOT p99<60ms
+    target: gpu
+    engine: vllm
+    model_id: Qwen/Qwen3-8B-AWQ
+    cold_start_s: 360.0     # measured 2026-07-02 (weights from HF; no BDN yet)
+    kv_ttl_s: 300.0
+    max_replicas: 2
+    scale_to_zero: true
+
+  # Baseten hosted Model APIs — one catalog mux pool serves every alias
+  # below (deploy/baseten/model-apis.json, refreshed by
+  # `python3 deploy/baseten/manage.py catalog`). Serverless: always warm,
+  # per-token billed, standard tier.
+  deepseek-v4-pro:
+    tier: standard
+    target: gpu
+    engine: baseten-api
+    model_id: deepseek-ai/DeepSeek-V4-Pro
+    cold_start_s: 0.5
+    kv_ttl_s: 300.0
+    max_replicas: 2
+    scale_to_zero: false
+  kimi-k2.5:
+    tier: standard
+    target: gpu
+    engine: baseten-api
+    model_id: moonshotai/Kimi-K2.5
+    cold_start_s: 0.5
+    kv_ttl_s: 300.0
+    max_replicas: 2
+    scale_to_zero: false
+  kimi-k2.6:
+    tier: standard
+    target: gpu
+    engine: baseten-api
+    model_id: moonshotai/Kimi-K2.6
+    cold_start_s: 0.5
+    kv_ttl_s: 300.0
+    max_replicas: 2
+    scale_to_zero: false
+  kimi-k2.7-code:
+    tier: standard
+    target: gpu
+    engine: baseten-api
+    model_id: moonshotai/Kimi-K2.7-Code
+    cold_start_s: 0.5
+    kv_ttl_s: 300.0
+    max_replicas: 2
+    scale_to_zero: false
+  nemotron-ultra:
+    tier: standard
+    target: gpu
+    engine: baseten-api
+    model_id: nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B
+    cold_start_s: 0.5
+    kv_ttl_s: 300.0
+    max_replicas: 2
+    scale_to_zero: false
+  nemotron-super:
+    tier: standard
+    target: gpu
+    engine: baseten-api
+    model_id: nvidia/Nemotron-120B-A12B
+    cold_start_s: 0.5
+    kv_ttl_s: 300.0
+    max_replicas: 2
+    scale_to_zero: false
+  openai-gpt-120b:
+    tier: standard
+    target: gpu
+    engine: baseten-api
+    model_id: openai/gpt-oss-120b
+    cold_start_s: 0.5
+    kv_ttl_s: 300.0
+    max_replicas: 2
+    scale_to_zero: false
+  glm-4.7:
+    tier: standard
+    target: gpu
+    engine: baseten-api
+    model_id: zai-org/GLM-4.7
+    cold_start_s: 0.5
+    kv_ttl_s: 300.0
+    max_replicas: 2
+    scale_to_zero: false
+  glm-5:
+    tier: standard
+    target: gpu
+    engine: baseten-api
+    model_id: zai-org/GLM-5
+    cold_start_s: 0.5
+    kv_ttl_s: 300.0
+    max_replicas: 2
+    scale_to_zero: false
+  glm-5.1:
+    tier: standard
+    target: gpu
+    engine: baseten-api
+    model_id: zai-org/GLM-5.1
+    cold_start_s: 0.5
+    kv_ttl_s: 300.0
+    max_replicas: 2
+    scale_to_zero: false
+  glm-5.2:
+    tier: standard
+    target: gpu
+    engine: baseten-api
+    model_id: zai-org/GLM-5.2
+    cold_start_s: 0.5
+    kv_ttl_s: 300.0
+    max_replicas: 2
+    scale_to_zero: false
