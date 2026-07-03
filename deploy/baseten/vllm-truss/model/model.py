@@ -19,7 +19,13 @@ class Model:
         self._secrets = kwargs.get("secrets") or {}
         self._config = kwargs.get("config") or {}
         self._engine = None
-        self._model_id = os.environ.get("MODEL_ID", "Qwen/Qwen3-8B")
+        # BDN-mounted weights (pre-downloaded before load()) beat a HF id:
+        # cold start skips the network entirely (Modal-volume pattern)
+        weights_path = os.environ.get("WEIGHTS_PATH")
+        if weights_path and os.path.isdir(weights_path):
+            self._model_id = weights_path
+        else:
+            self._model_id = os.environ.get("MODEL_ID", "Qwen/Qwen3-8B")
 
     def load(self):
         # Import inside load() so `truss push` metadata steps don't need GPU deps.
@@ -35,6 +41,8 @@ class Model:
             extra["quantization"] = os.environ["QUANTIZATION"]
         if os.environ.get("DTYPE"):
             extra["dtype"] = os.environ["DTYPE"]
+        if os.environ.get("VLLM_ENFORCE_EAGER") == "1":
+            extra["enforce_eager"] = True   # skip CUDA graph capture
         self._engine = AsyncLLMEngine.from_engine_args(
             AsyncEngineArgs(
                 model=self._model_id,

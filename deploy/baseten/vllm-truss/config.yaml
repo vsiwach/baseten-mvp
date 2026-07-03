@@ -10,6 +10,15 @@
 #     Engine-Builder BUILD_FAILED class entirely (FRICTION #12); this exact
 #     model.py was validated against BasetenAdapter in session 1.
 model_name: qwen3-8b-vllm
+# BDN weights cache — the "Modal volume" equivalent (2026-07-03): weights are
+# mirrored once and mounted at /models/qwen3-8b-awq BEFORE load(), so cold
+# starts skip the HF download entirely. Baseline without this: 360s load
+# (21s download + 77s to GPU + 40s graph capture). Public repo, no auth.
+# https://docs.baseten.co/development/model/bdn
+weights:
+  - source: "hf://Qwen/Qwen3-8B-AWQ"
+    mount_location: "/models/qwen3-8b-awq"
+    allow_patterns: ["*.safetensors", "*.json", "tokenizer.*"]
 description: "ai-native-pipeline vLLM pool — OpenAI-compat chat via custom Truss"
 python_version: py311
 model_metadata:
@@ -30,6 +39,10 @@ runtime:
   predict_concurrency: 4
 environment_variables:
   MODEL_ID: Qwen/Qwen3-8B-AWQ
+  WEIGHTS_PATH: /models/qwen3-8b-awq   # BDN mount; load() prefers it
+  VLLM_ENFORCE_EAGER: "0"              # "1" skips CUDA graph capture (~40s)
+                                       # for demo-fast cold starts at some
+                                       # steady-state throughput cost
   MAX_MODEL_LEN: "4096"     # T4 16 GiB VRAM: AWQ weights + KV headroom
   QUANTIZATION: awq
   DTYPE: float16            # AWQ kernels want fp16
