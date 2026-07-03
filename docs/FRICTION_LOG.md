@@ -281,3 +281,20 @@ capacity-side. Detection rule now encoded in pod.py + LIVE_SETUP.md: if
 `runtime` is null after ~10 min, kill the pod (it will not recover).
 **Product could:** not bill until the container starts, expose provisioning
 events via API, and fail create loudly when a host can't start the workload.
+
+### 17. The fast cold-start path exists but is opt-in and undiscoverable — measured 2.4x
+**Doing:** attacking our 360s cold start after comparing with a Modal deploy
+of the same model family (Modal's volume pattern is front-and-center in
+every example; our Baseten truss shipped without the equivalent).
+**Happened:** adding the `weights:` (BDN) block — one config stanza — cut
+`model.load()` from 360.4s to **148.2s** (deployment qvm1v4e logs:
+"Successfully pulled weights (6.1 GB, 2.8 MB cached) in 16.3s at 375 MB/s",
+weights-to-GPU 77s → 16s). Nothing at push time suggested it: no warning
+that load() downloads from HF on every cold start, no "add weights: to cut
+cold starts" hint, even though the platform can see both the HF download in
+our requirements pattern and our 6-minute loads. Remaining floor is vLLM
+engine init (51s) + CUDA graph capture (41s, skippable via enforce_eager).
+**Cost:** every cold start before this carried ~212s of avoidable latency —
+billed. **Product could:** make BDN the default for `hf://`-resolvable
+models, or detect download-in-load() and suggest the weights block at push
+time. "Make the fast path the default path."
