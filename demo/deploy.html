@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inference Control — Deploy Timeline</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  body { overflow-y: auto; }
+  .page { max-width: 1180px; margin: 0 auto; padding: 18px 24px 60px; display: flex; flex-direction: column; gap: 18px; }
+
+  .topbar { display: flex; align-items: center; gap: 16px; padding: 12px 18px; }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand h1 { font-size: 15px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  .brand .sub { font-size: var(--fs-micro); color: var(--text-3); letter-spacing: .06em; }
+  .nav { display: flex; gap: 4px; margin-left: 8px; }
+  .nav a { font-size: var(--fs-small); font-weight: 600; color: var(--text-3); text-decoration: none; padding: 5px 12px; border-radius: var(--r-sm); }
+  .nav a.active { color: var(--accent); background: var(--accent-bg); }
+  .nav a:hover:not(.active) { color: var(--text-2); }
+  .topbar .spacer { flex: 1; }
+
+  .header-block { padding: 22px 26px; display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+  .header-block h2 { font-size: 26px; font-weight: 650; letter-spacing: -0.01em; }
+  .header-block h2 b { color: var(--accent); font-weight: 650; }
+  .header-block .target { font-family: var(--font-mono); font-size: var(--fs-small); color: var(--text-2); }
+  .header-block .note { width: 100%; font-size: var(--fs-small); color: var(--text-3); }
+
+  /* ---------------- timeline ---------------- */
+  .timeline { position: relative; padding: 8px 0 0 0; display: flex; flex-direction: column; gap: 14px; }
+  .timeline::before {
+    content: ""; position: absolute; left: 27px; top: 20px; bottom: 40px;
+    width: 2px; background: linear-gradient(180deg, var(--stroke-hi), var(--ok));
+  }
+  .attempt { position: relative; display: grid; grid-template-columns: 56px 1fr; gap: 0; }
+  .marker { position: relative; display: flex; justify-content: center; padding-top: 20px; }
+  .marker .dot {
+    width: 30px; height: 30px; border-radius: 50%; z-index: 1;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 13px; font-weight: 700;
+    background: var(--panel-2); border: 2px solid var(--stroke-hi); color: var(--text-2);
+  }
+  .attempt.failed .dot { border-color: var(--danger-line); color: var(--danger); }
+  .attempt.live .dot { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); font-size: 15px; }
+
+  .card { padding: 16px 20px 14px; display: flex; flex-direction: column; gap: 9px; }
+  .attempt.failed .card { border-left: 2px solid transparent; }
+  .attempt.live .card { border-color: rgba(63,216,160,.4); background: linear-gradient(180deg, rgba(63,216,160,.05), transparent 55%), var(--panel); }
+
+  .card-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .card-top .stage { font-family: var(--font-mono); font-size: 13px; font-weight: 600; color: var(--text); }
+  .card-top .ts { font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--text-3); }
+  .card-top .dur { margin-left: auto; font-family: var(--font-mono); font-size: var(--fs-micro); color: var(--text-3); }
+
+  .error { font-family: var(--font-mono); font-size: 13px; color: var(--danger); background: var(--danger-bg); border: 1px solid rgba(240,99,85,.2); border-radius: var(--r-sm); padding: 8px 12px; line-height: 1.5; }
+  .attempt.live .error { display: none; }
+
+  .diagnosis { display: grid; grid-template-columns: 20px 1fr; gap: 10px; align-items: baseline; font-size: var(--fs-body); color: var(--text-2); line-height: 1.55; }
+  .diagnosis .glyph { color: var(--accent); font-size: 14px; }
+  .diagnosis b { color: var(--text); font-weight: 600; }
+  .citation { display: inline-flex; align-items: center; gap: 6px; margin-top: 2px; font-family: var(--font-mono); font-size: 12px; color: var(--accent); text-decoration: none; padding: 3px 10px; border: 1px solid var(--accent-line); border-radius: 999px; background: var(--accent-bg); width: fit-content; }
+  .citation:hover { filter: brightness(1.15); }
+
+  .attempt.live .live-stats { display: flex; gap: 26px; margin-top: 4px; }
+  .live-stat .k { font-size: var(--fs-micro); color: var(--text-3); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .live-stat .v { font-family: var(--font-mono); font-size: 26px; font-weight: 650; color: var(--ok); }
+
+  .replay-note { text-align: center; font-size: var(--fs-small); color: var(--text-3); padding: 6px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header class="panel topbar">
+    <div class="brand"><h1>Inference Control</h1><span class="sub">router control plane</span></div>
+    <nav class="nav">
+      <a href="devboard.html">Live Board</a>
+      <a class="active" href="deploy.html">Deploy&nbsp;·&nbsp;Act&nbsp;1</a>
+    </nav>
+    <div class="spacer"></div>
+    <span class="chip chip-accent"><span class="dot"></span>recorded session</span>
+  </header>
+
+  <div class="panel header-block">
+    <h2 id="deployTitle">Deploying <b>—</b>, agent-assisted</h2>
+    <span class="target" id="deployTarget"></span>
+    <span class="note">Every failure below is real. Each diagnosis cites the docs page the agent grounded on — no retries were blind.</span>
+  </div>
+
+  <div class="timeline" id="timeline"></div>
+
+  <div class="replay-note">Recorded deploy session · rendered from static attempt JSON — nothing is redeployed live.</div>
+</div>
+
+<script src="mock-data.js"></script>
+<script>
+(async function () {
+  const data = await window.MockAPI.getDeployTimeline();
+  document.getElementById("deployTitle").innerHTML = `Deploying <b>${data.model}</b>, agent-assisted`;
+  document.getElementById("deployTarget").textContent = data.target;
+
+  document.getElementById("timeline").innerHTML = data.attempts.map((a) => {
+    const live = a.outcome === "live";
+    return `<div class="attempt ${live ? "live" : "failed"}">
+      <div class="marker"><div class="dot">${live ? "✓" : a.attempt}</div></div>
+      <div class="panel card">
+        <div class="card-top">
+          <span class="chip ${live ? "chip-ok" : "chip-danger"}">${live ? "live" : "failed"}</span>
+          <span class="stage">${a.stage}</span>
+          <span class="ts">${a.ts}</span>
+          <span class="dur">${live ? "first token in" : "failed after"} ${a.duration_s}s</span>
+        </div>
+        ${a.error ? `<div class="error">${a.error}</div>` : ""}
+        <div class="diagnosis"><span class="glyph">⬡</span>
+          <span>${a.diagnosis.replace("Agent:", "<b>Agent:</b>")}</span></div>
+        <a class="citation" href="${a.citation.url}" target="_blank" rel="noopener">↗ ${a.citation.title} · ${a.citation.url.replace("https://", "")}</a>
+        ${live ? `<div class="live-stats">
+            <div class="live-stat"><div class="k">status</div><div class="v" style="font-size:20px">ACTIVE</div></div>
+          </div>` : ""}
+      </div>
+    </div>`;
+  }).join("");
+})();
+</script>
+</body>
+</html>
