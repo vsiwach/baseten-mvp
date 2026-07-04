@@ -5,6 +5,11 @@ tiers:
   # token) the router routes and (Phase 8) autoscales against.
   # voice SLO per the baseten-mvp mission: TTFT p99<500ms, TPOT p99<60ms
   realtime: {max_latency_ms: 250, prefer: lowest_latency, ttft_ms: 500, tpot_ms: 60}
+  # interactive: what a single-GPU 8B deployment (T4) can actually hold —
+  # a T4 running Qwen3-8B-AWQ measures ~350-500ms TTFT warm, so voice's
+  # 500ms p99 is out of reach; interactive (800ms) is its honest tier.
+  # True voice routes to faster capacity. Measured 2026-07-04.
+  interactive: {max_latency_ms: 1000, prefer: lowest_latency, ttft_ms: 800, tpot_ms: 60}
   standard: {max_latency_ms: 2000, prefer: lowest_cost, ttft_ms: 2000, tpot_ms: 80}
   batch: {max_latency_ms: null, prefer: lowest_cost, queue: true}
 

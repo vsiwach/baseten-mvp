@@ -18,13 +18,10 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Assemble site (demo board at /, evidence replay at /replay)
+      - name: Build the Reliability Console (real recording, evidence replay)
         run: |
-          mkdir -p _site/replay
-          cp -r demo/* _site/
-          rm -f _site/vercel.json
-          cp demo/devboard.html _site/index.html
-          cp site/index.html site/replay-data.js _site/replay/
+          python3 tools/replay/build_console.py
+          mv site-console _site
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

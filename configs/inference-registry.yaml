@@ -5,7 +5,7 @@ backends:
   # The flagship pool: open-weight Qwen3-8B (AWQ int4) on a dedicated
   # Baseten T4 (deploy/baseten/vllm-truss), spilling to the Model APIs.
   qwen3-8b:
-    tier: realtime          # voice SLO: TTFT p99<500ms, TPOT p99<60ms
+    tier: interactive       # T4+8B holds interactive (TTFT<800ms), not voice
     target: gpu
     engine: vllm
     model_id: Qwen/Qwen3-8B-AWQ
