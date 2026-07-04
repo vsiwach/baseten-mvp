@@ -1,0 +1,120 @@
+/* ============================================================
+   tokens.css — Inference Control demo board
+   Dark mission-control, polished product tone, cyan accent.
+   All colors defined once here; screens consume variables only.
+   ============================================================ */
+
+:root {
+  /* ---- Surfaces (cool near-blacks) ---- */
+  --bg:        #0a0e13;   /* page */
+  --panel:     #10151c;   /* card base */
+  --panel-2:   #151b24;   /* nested / raised */
+  --panel-3:   #1a222d;   /* hover / active row */
+  --stroke:    #1e2732;   /* hairline borders */
+  --stroke-hi: #2a3644;   /* emphasized borders */
+
+  /* ---- Text ---- */
+  --text:      #e8eef4;
+  --text-2:    #9aa7b4;   /* secondary */
+  --text-3:    #5f6c7a;   /* labels, captions */
+
+  /* ---- Accent (healthy / primary) ---- */
+  --accent:      #3fd8e4;
+  --accent-dim:  #2aa8b4;
+  --accent-bg:   rgba(63, 216, 228, 0.10);
+  --accent-line: rgba(63, 216, 228, 0.35);
+
+  /* ---- Status ---- */
+  --ok:        #3fd8a0;
+  --ok-bg:     rgba(63, 216, 160, 0.10);
+  --warn:      #f0b34e;
+  --warn-bg:   rgba(240, 179, 78, 0.12);
+  --danger:    #f06355;
+  --danger-bg: rgba(240, 99, 85, 0.12);
+  --danger-line: rgba(240, 99, 85, 0.45);
+  --replay:    #9d8cff;
+  --replay-bg: rgba(157, 140, 255, 0.12);
+
+  /* ---- Type ---- */
+  --font-ui:   -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  /* Scale tuned for 2 m readability on a 1512 px display */
+  --fs-hero:   64px;   /* KPI numbers */
+  --fs-big:    34px;   /* secondary numerics */
+  --fs-h1:     17px;   /* panel titles */
+  --fs-body:   14px;
+  --fs-small:  12.5px;
+  --fs-micro:  11px;   /* uppercase labels */
+
+  /* ---- Shape / depth ---- */
+  --r-lg: 14px;
+  --r-md: 10px;
+  --r-sm: 6px;
+  --shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 8px 24px rgba(0,0,0,0.35);
+  --gap: 14px;
+}
+
+/* ---- Base reset ---- */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--fs-body);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* ---- Shared primitives ---- */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+}
+.label {
+  font-size: var(--fs-micro);
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+.mono { font-family: var(--font-mono); }
+.num  { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 999px;
+  font-size: var(--fs-micro); font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; border: 1px solid transparent;
+}
+.chip .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.chip-ok     { color: var(--ok);     background: var(--ok-bg);     border-color: rgba(63,216,160,.25); }
+.chip-warn   { color: var(--warn);   background: var(--warn-bg);   border-color: rgba(240,179,78,.25); }
+.chip-danger { color: var(--danger); background: var(--danger-bg); border-color: rgba(240,99,85,.3); }
+.chip-replay { color: var(--replay); background: var(--replay-bg); border-color: rgba(157,140,255,.3); }
+.chip-accent { color: var(--accent); background: var(--accent-bg); border-color: var(--accent-line); }
+
+.btn {
+  font-family: var(--font-ui); font-size: var(--fs-small); font-weight: 600;
+  color: var(--text-2); background: var(--panel-2);
+  border: 1px solid var(--stroke-hi); border-radius: var(--r-sm);
+  padding: 7px 14px; cursor: pointer; transition: all .15s ease;
+}
+.btn:hover { color: var(--text); border-color: var(--accent-dim); }
+.btn.primary { color: #06282c; background: var(--accent); border-color: var(--accent); }
+.btn.primary:hover { filter: brightness(1.1); }
+.btn.danger { color: var(--danger); border-color: var(--danger-line); background: var(--danger-bg); }
+.btn.danger:hover { filter: brightness(1.15); }
+.btn:disabled { opacity: .4; cursor: default; pointer-events: none; }
+
+.delta-good { color: var(--ok); }
+.delta-bad  { color: var(--danger); }
+
+/* pulse used by live indicators */
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .35; } }
+.pulsing { animation: pulse 1.4s ease-in-out infinite; }
+
+@keyframes rowIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }

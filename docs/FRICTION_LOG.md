@@ -298,3 +298,33 @@ engine init (51s) + CUDA graph capture (41s, skippable via enforce_eager).
 billed. **Product could:** make BDN the default for `hf://`-resolvable
 models, or detect download-in-load() and suggest the weights block at push
 time. "Make the fast path the default path."
+
+### 18. Deployment metrics lag 1–3 minutes and arrive as silent nulls
+**Doing:** reading `GET /v1/models/{id}/deployments/{dep}/metrics` (SUMMARY)
+right after serving 7 real requests, to verify the pipeline for a live console
+(2026-07-04; raw: benchmarks/raw/live_mcp_metrics_summary_20260704-191352.json).
+**Happened:** ~35s after traffic, the API returned counter `0.0` and a
+histogram of all `null`s — indistinguishable from "this deployment has never
+served anything". The same call ~2 min later returned the correct values
+(counter 7.0, full quantiles; ...191613.json). No `data_through` /
+"metrics current as of" timestamp anywhere in the response, though the
+response schema already has per-entry `start_epoch_millis`.
+**Cost:** any dashboard, rollout gate, or agent that reads metrics after a
+deploy sees false zeros during exactly the window where it matters most
+(post-rollout verification); we had to teach our console that all-null
+histograms mean "no data YET (lag up to ~3 min)", which is a guess, not a
+contract. **Product could:** include a `data_complete_through_epoch_millis`
+field so clients can distinguish "no traffic" from "not ingested yet".
+
+### 19. Metrics endpoint rate-limits a single dashboard user (429 on ~14 sequential GETs)
+**Doing:** console-live's live verification — two back-to-back full refreshes
+of one workspace (2 models → 7 GETs each: models + deployments + metrics),
+2026-07-04.
+**Happened:** the second refresh tripped 429s on the metrics endpoint (beta).
+One human clicking Refresh twice is enough; there is no documented per-endpoint
+budget to design against (the page now pauses polling and backs off).
+**Cost:** a monitoring UI — the natural consumer of this endpoint — cannot
+poll a modest workspace at 60s intervals with headroom for a manual refresh;
+N deployments multiply it. **Product could:** publish the limit, return
+Retry-After consistently, and price GETs of pre-aggregated metrics far above
+one-per-second-ish.

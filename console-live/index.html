@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baseten Live Console — read-only observer</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* Page-level overrides + utilities on top of tokens.css */
+  body { overflow: auto; }
+  .wrap { max-width: 1320px; margin: 0 auto; padding: 0 20px 60px; }
+
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--bg); border-bottom: 1px solid var(--stroke);
+    padding: 14px 0 0;
+  }
+  .top-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; padding: 0 0 12px; }
+  .top-row h1 { font-size: var(--fs-h1); font-weight: 700; letter-spacing: 0.02em; }
+  .top-row .spacer { flex: 1; }
+
+  .banner {
+    display: block; padding: 8px 12px; margin-bottom: 12px;
+    background: var(--accent-bg); border: 1px solid var(--accent-line);
+    border-radius: var(--r-sm); color: var(--text-2); font-size: var(--fs-small);
+  }
+  .banner strong { color: var(--accent); }
+  .notice {
+    padding: 8px 12px; margin: 12px 0; border-radius: var(--r-sm);
+    background: var(--warn-bg); border: 1px solid rgba(240,179,78,.3);
+    color: var(--warn); font-size: var(--fs-small);
+  }
+
+  .connect { max-width: 520px; margin: 40px auto; padding: 22px; }
+  .connect h2 { font-size: var(--fs-h1); margin-bottom: 6px; }
+  .connect p { color: var(--text-2); font-size: var(--fs-small); margin-bottom: 14px; }
+  .connect form { display: flex; gap: 10px; }
+  .connect input {
+    flex: 1; background: var(--panel-2); border: 1px solid var(--stroke-hi);
+    border-radius: var(--r-sm); color: var(--text); padding: 8px 10px;
+    font-family: var(--font-mono); font-size: var(--fs-small);
+  }
+  .connect input:focus { outline: none; border-color: var(--accent-dim); }
+  .connect .err { color: var(--danger); font-size: var(--fs-small); margin-top: 10px; }
+
+  .controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .controls select {
+    background: var(--panel-2); border: 1px solid var(--stroke-hi);
+    border-radius: var(--r-sm); color: var(--text-2); padding: 6px 8px;
+    font-size: var(--fs-small); font-family: var(--font-ui);
+  }
+  .controls label.toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--text-2); font-size: var(--fs-small); cursor: pointer;
+  }
+  .controls .status { color: var(--text-3); font-size: var(--fs-micro); }
+
+  .grid {
+    display: grid; gap: var(--gap); margin-top: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  }
+  .card { padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .card .head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .card .head .name { font-size: var(--fs-h1); font-weight: 700; }
+  .card .head .dep { color: var(--text-3); font-size: var(--fs-micro); }
+  .card .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+                color: var(--text-2); font-size: var(--fs-small); }
+  .card .meta .sep { color: var(--text-3); }
+
+  .slo { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .slo .budgets { color: var(--text-3); font-size: var(--fs-micro); }
+
+  .stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+  .stat .label { display: block; margin-bottom: 2px; }
+  .stat .num { font-size: 16px; }
+  .traffic { display: flex; gap: 16px; align-items: flex-end; flex-wrap: wrap; }
+  .traffic .stat .num { font-size: 16px; }
+  .spark { display: block; }
+  .spark polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+
+  .flag { color: var(--warn); font-size: var(--fs-micro); }
+  .reco {
+    background: var(--panel-2); border: 1px solid var(--stroke);
+    border-radius: var(--r-sm); padding: 8px 10px; font-size: var(--fs-small);
+    color: var(--text-2);
+  }
+  .reco .label { display: block; margin-bottom: 3px; }
+  .card .inline-err { color: var(--danger); font-size: var(--fs-small); }
+  .notraffic { color: var(--text-3); font-size: var(--fs-small); }
+  .foot { border-top: 1px solid var(--stroke); padding-top: 8px; }
+  .foot div { color: var(--text-3); font-size: 10px; font-family: var(--font-mono); }
+
+  .empty { text-align: center; color: var(--text-3); padding: 60px 0; font-size: var(--fs-small); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="top-row">
+      <h1>Baseten Live Console</h1>
+      <span class="chip chip-accent"><span class="dot"></span>read-only</span>
+      <span class="spacer"></span>
+      <div class="controls" id="controls" hidden>
+        <span class="label">window</span>
+        <select id="windowSel">
+          <option value="1" selected>last 1h</option>
+          <option value="6">last 6h</option>
+          <option value="24">last 24h</option>
+        </select>
+        <button class="btn" id="refreshBtn">Refresh</button>
+        <label class="toggle"><input type="checkbox" id="autoChk"> auto-refresh 60s</label>
+        <button class="btn" id="disconnectBtn">Disconnect</button>
+        <span class="status num" id="statusTxt"></span>
+      </div>
+    </div>
+    <div class="banner"><strong>Read-only observer</strong> — recommendations are advisory.
+      Autonomous mitigation (quarantine/spill/self-heal) requires a router in the request path —
+      see the recorded control-plane demo.</div>
+  </header>
+
+  <div id="notice" class="notice" hidden></div>
+
+  <section id="connectPanel" class="panel connect">
+    <h2>Connect</h2>
+    <p>Paste a Baseten API key. It is held in memory only — never stored, never
+       put in a URL — and sent solely to this page's proxy as a request header.</p>
+    <form id="connectForm">
+      <input type="password" id="keyInput" placeholder="Baseten API key" autocomplete="off" required>
+      <button class="btn primary" type="submit">Connect</button>
+    </form>
+    <div class="err" id="connectErr" hidden></div>
+  </section>
+
+  <div id="empty" class="empty" hidden>No models found in this workspace.</div>
+  <main id="cards" class="grid"></main>
+</div>
+
+<script>
+'use strict';
+(() => {
+  // ---- state (key lives only in this closure) ----
+  let apiKey = null;
+  let windowHours = 1;
+  let autoTimer = null;
+  let pausedUntil = 0;
+  let loading = false;
+
+  const BUDGET_VOICE_MS = 500;
+  const BUDGET_INTERACTIVE_MS = 800;
+  const $ = (id) => document.getElementById(id);
+
+  // ---- proxy client ----
+  class ApiError extends Error {
+    constructor(status, msg) { super(msg); this.status = status; }
+  }
+
+  async function api(path, params = {}) {
+    if (Date.now() < pausedUntil) throw new ApiError(429, 'paused by rate limit');
+    const qs = new URLSearchParams({ path });
+    for (const [k, v] of Object.entries(params)) {
+      for (const item of [].concat(v)) qs.append(k, item);
+    }
+    const res = await fetch('/api/baseten?' + qs, { headers: { 'x-baseten-api-key': apiKey } });
+    if (res.status === 401) throw new ApiError(401, 'key rejected');
+    if (res.status === 403) {
+      // Baseten answers an invalid key with 403 PERMISSION_DENIED (observed live).
+      const body = await res.json().catch(() => ({}));
+      if (body.code === 'PERMISSION_DENIED') throw new ApiError(401, 'key rejected');
+      throw new ApiError(403, body.error || 'forbidden');
+    }
+    if (res.status === 429) {
+      const wait = Number(res.headers.get('Retry-After')) || 30;
+      pausedUntil = Date.now() + wait * 1000;
+      showNotice(`Rate limited by the Baseten API — polling paused for ${wait}s.`);
+      throw new ApiError(429, 'rate limited');
+    }
+    if (!res.ok) throw new ApiError(res.status, `HTTP ${res.status}`);
+    return res.json();
+  }
+
+  function metricsParams() {
+    const end = Date.now();
+    return {
+      start_epoch_millis: String(end - windowHours * 3600 * 1000),
+      end_epoch_millis: String(end),
+    };
+  }
+
+  async function mapLimit(items, limit, fn) {
+    const out = new Array(items.length);
+    let next = 0;
+    async function worker() {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await fn(items[i], i);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+    return out;
+  }
+
+  // ---- metrics parsing ----
+  // Response shape (both modes): { metric_descriptors: [...], metric_values: [...] }.
+  // Each metric_values entry is { start_epoch_millis, values } where values[j]
+  // aligns positionally with metric_descriptors[j], and values[j][i] with that
+  // descriptor's label_sets[i]. SUMMARY has a single entry; SERIES one per bucket.
+  function descriptorIndex(descriptors, nameFragment) {
+    return descriptors.findIndex((d) => String(d.name || '').includes(nameFragment));
+  }
+
+  // SUMMARY → { latency: {p50,p90,p95,p99,avg} (ms, may be empty),
+  //             latencyAllNull, replicasAvg, requestsTotal }
+  function parseSummary(json) {
+    const descriptors = json.metric_descriptors || [];
+    const row = (json.metric_values || [])[0];
+    const out = { latency: {}, latencyAllNull: false, replicasAvg: null, requestsTotal: null };
+    if (!row) { out.latencyAllNull = true; return out; }
+
+    descriptors.forEach((d, j) => {
+      const name = String(d.name || '');
+      const labelSets = d.label_sets || [];
+      const vals = (row.values || [])[j] || [];
+      if (name.includes('response_time') || name.includes('latency')) {
+        out.latencyAllNull = vals.length > 0 && vals.every((v) => v == null);
+        labelSets.forEach((ls, i) => {
+          const v = vals[i];
+          if (v == null) return;
+          if (ls.quantile != null) out.latency['p' + Math.round(parseFloat(ls.quantile) * 100)] = v * 1000;
+          else if (ls.stat === 'avg') out.latency.avg = v * 1000;
+        });
+      } else if (name.includes('requests_total')) {
+        // SUMMARY returns the window total directly, one value per label_set.
+        out.requestsTotal = vals.reduce((a, v) => a + (v == null ? 0 : v), 0);
+      } else if (name.includes('replicas')) {
+        const nums = vals.filter((v) => v != null);
+        if (nums.length) out.replicasAvg = nums.reduce((a, b) => a + b, 0) / nums.length;
+      }
+    });
+    return out;
+  }
+
+  // SERIES of baseten_inference_requests_total: values arrive as PER-BUCKET
+  // INCREMENTS, so window volume = sum across buckets (null → 0).
+  // → { total, byClass: {'2':n,'4':n,'5':n,...}, spark: [per-bucket totals] }
+  function parseSeries(json) {
+    const descriptors = json.metric_descriptors || [];
+    const j = descriptorIndex(descriptors, 'requests_total');
+    const out = { total: 0, byClass: {}, spark: [] };
+    if (j < 0) return out;
+    const labelSets = descriptors[j].label_sets || [];
+    for (const bucket of json.metric_values || []) {
+      const vals = (bucket.values || [])[j] || [];
+      let bucketSum = 0;
+      labelSets.forEach((ls, i) => {
+        const v = vals[i];
+        if (v == null) return;
+        const cls = String(ls.status || '?')[0];
+        out.byClass[cls] = (out.byClass[cls] || 0) + v;
+        bucketSum += v;
+      });
+      out.total += bucketSum;
+      out.spark.push(bucketSum);
+    }
+    return out;
+  }
+
+  // ---- analysis ----
+  function coldStartFlag(lat, n, minReplica) {
+    const { p50, p95, p99 } = lat;
+    if (p99 != null && p50 != null && p50 > 0 && p99 / p50 >= 8 && p99 > 5000) return true;
+    if (n < 20) return true;
+    if (minReplica === 0 && p99 != null && p95 != null && p99 > 5 * p95) return true;
+    return false;
+  }
+
+  // GREEN ≤0.8×budget (clean, n≥30); AMBER ≤budget or flagged or n<30; RED >budget clean.
+  function verdictFor(effMs, budgetMs, flagged, n) {
+    if (effMs == null) return 'AMBER';
+    if (effMs <= 0.8 * budgetMs && !flagged && n >= 30) return 'GREEN';
+    if (effMs <= budgetMs || flagged || n < 30) return 'AMBER';
+    return 'RED';
+  }
+
+  function recommend(c) {
+    const f = (v) => fmtMs(v);
+    if (c.status === 'DEPLOY_FAILED' || c.status === 'BUILD_FAILED') {
+      return `Fix failed deploy — status is ${c.status}; no healthy replicas can serve traffic.`;
+    }
+    if (c.n > 0 && c.pct5xx > 1) {
+      return `Investigate 5xx errors — ${c.pct5xx.toFixed(1)}% of ${c.n} requests returned 5xx in the window.`;
+    }
+    if (c.verdict === 'RED' && c.maxReplica != null && c.activeReplicas === c.maxReplica) {
+      return `Raise max_replica or upsize the instance — p99 ${f(c.p99)} exceeds the ${BUDGET_INTERACTIVE_MS}ms budget while pinned at ${c.activeReplicas}/${c.maxReplica} replicas.`;
+    }
+    if (c.minReplica === 0 && c.p95 != null && c.p99 != null &&
+        c.p95 <= BUDGET_INTERACTIVE_MS && c.p99 > BUDGET_INTERACTIVE_MS) {
+      return `Set min_replica=1 to avoid cold starts — steady p95 is ${f(c.p95)} (within budget) but p99 hits ${f(c.p99)} with scale-to-zero enabled.`;
+    }
+    if (c.flagged && (c.p95 == null || c.p95 > BUDGET_INTERACTIVE_MS)) {
+      return `Window looks cold-start-dominated or low-sample (n=${c.n}, p95 ${f(c.p95)}) — widen the window or send steady traffic before tuning autoscaling.`;
+    }
+    if (!c.flagged && c.p99 != null && c.p99 > BUDGET_VOICE_MS && c.p99 <= BUDGET_INTERACTIVE_MS) {
+      return `Holds the interactive budget (${BUDGET_INTERACTIVE_MS}ms) but misses voice (${BUDGET_VOICE_MS}ms) — p99 is ${f(c.p99)}.`;
+    }
+    if (c.n === 0) {
+      return `No requests observed in the last ${windowHours}h — widen the window or send traffic to get a signal.`;
+    }
+    if (c.verdict === 'GREEN' && c.minReplica > 0 && c.ratePerMin < 1) {
+      return `Consider scale-to-zero — traffic is ${c.ratePerMin.toFixed(2)} req/min with min_replica=${c.minReplica} held warm.`;
+    }
+    return `Healthy — no action. p99 ${f(c.p99)}, ${c.n} requests, ${c.pct5xx.toFixed(1)}% 5xx in the window.`;
+  }
+
+  // ---- formatting ----
+  const esc = (s) => String(s).replace(/[&<>"']/g, (ch) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const fmtMs = (v) => v == null ? '—' : (v >= 100 ? Math.round(v) : v.toFixed(1)) + 'ms';
+  const chipClass = { GREEN: 'chip-ok', AMBER: 'chip-warn', RED: 'chip-danger' };
+  const statusChip = (s) => /FAILED/.test(s) ? 'chip-danger'
+    : (s === 'ACTIVE' ? 'chip-ok' : (s === 'SCALED_TO_ZERO' ? 'chip-warn' : 'chip-warn'));
+
+  function sparkline(points) {
+    if (!points.length) return '';
+    const w = 120, h = 28, max = Math.max(...points, 1);
+    const step = points.length > 1 ? w / (points.length - 1) : 0;
+    const pts = points.map((v, i) =>
+      `${(i * step).toFixed(1)},${(h - 2 - (v / max) * (h - 4)).toFixed(1)}`).join(' ');
+    return `<svg class="spark" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}"><polyline points="${pts}"/></svg>`;
+  }
+
+  function showNotice(msg) {
+    const el = $('notice');
+    el.textContent = msg;
+    el.hidden = !msg;
+  }
+
+  // ---- rendering ----
+  function cardShell(model, dep) {
+    const st0 = dep.autoscaling_settings || {};
+    const stz = st0.min_replica === 0
+      ? `<span class="chip chip-warn">scale-to-zero enabled</span>` +
+        (dep.active_replica_count === 0 ? ` <span class="chip chip-warn">scaled to zero now</span>` : '')
+      : '';
+    const el = document.createElement('article');
+    el.className = 'panel card';
+    el.innerHTML = `
+      <div class="head">
+        <span class="name">${esc(model.name || model.id)}</span>
+        <span class="chip ${statusChip(dep.status)}"><span class="dot"></span>${esc(dep.status || '?')}</span>
+        <span class="dep mono">${esc(dep.name || '')} · ${esc(dep.id)}</span>
+      </div>
+      <div class="meta">
+        <span class="mono">${esc(dep.instance_type_name || 'instance n/a')}</span>
+        <span class="sep">·</span>
+        <span class="num">${dep.active_replica_count != null ? Number(dep.active_replica_count) : '—'} active</span>
+        <span class="sep">·</span>
+        <span class="num">replicas ${st0.min_replica != null ? Number(st0.min_replica) : '—'}–${st0.max_replica != null ? Number(st0.max_replica) : '—'}</span>
+        ${stz}
+      </div>
+      <div class="body"><span class="notraffic pulsing">loading metrics…</span></div>
+      <div class="foot">
+        <div>deployment · GET /v1/models/${esc(model.id)}/deployments</div>
+      </div>`;
+    return el;
+  }
+
+  function renderMetrics(el, model, dep, summary, series) {
+    const body = el.querySelector('.body');
+    const foot = el.querySelector('.foot');
+    const src = `GET /v1/models/${esc(model.id)}/deployments/${esc(dep.id)}/metrics`;
+    const win = `last ${windowHours}h`;
+    foot.innerHTML = `
+      <div>deployment · GET /v1/models/${esc(model.id)}/deployments</div>
+      <div>latency/replicas · ${src} · SUMMARY · ${win} · baseten_end_to_end_response_time_seconds (full response incl. token generation, not TTFT)</div>
+      <div>traffic · ${src} · SERIES · ${win} · baseten_inference_requests_total</div>`;
+
+    const lat = summary.latency;
+    const n = series.total;
+    const noTraffic = n === 0 || summary.latencyAllNull || Object.keys(lat).length === 0;
+    if (noTraffic && n === 0) {
+      body.innerHTML = `<span class="notraffic">No requests in this window (metrics can lag 1–3 min).
+        Replicas avg: <span class="num">${summary.replicasAvg == null ? '—' : summary.replicasAvg.toFixed(1)}</span></span>
+        <div class="reco"><span class="label">recommendation</span>${esc(recommend({
+          status: dep.status, n: 0, pct5xx: 0, verdict: null, flagged: false,
+          minReplica: (dep.autoscaling_settings || {}).min_replica,
+          maxReplica: (dep.autoscaling_settings || {}).max_replica,
+          activeReplicas: dep.active_replica_count, ratePerMin: 0,
+        }))}</div>`;
+      return;
+    }
+
+    const auto = dep.autoscaling_settings || {};
+    const flagged = coldStartFlag(lat, n, auto.min_replica);
+    const eff = flagged ? (lat.p95 ?? lat.p99) : lat.p99;
+    const verdict = verdictFor(eff, BUDGET_INTERACTIVE_MS, flagged, n);
+    const voice = verdictFor(eff, BUDGET_VOICE_MS, flagged, n);
+    const err4 = series.byClass['4'] || 0;
+    const err5 = series.byClass['5'] || 0;
+    const pctErr = n ? ((err4 + err5) / n) * 100 : 0;
+    const pct5xx = n ? (err5 / n) * 100 : 0;
+    const ratePerMin = n / (windowHours * 60);
+
+    const reco = recommend({
+      status: dep.status, n, pct5xx, verdict, flagged,
+      minReplica: auto.min_replica, maxReplica: auto.max_replica,
+      activeReplicas: dep.active_replica_count, ratePerMin,
+      p95: lat.p95, p99: lat.p99,
+    });
+
+    body.innerHTML = `
+      <div class="slo">
+        <span class="chip ${chipClass[verdict]}"><span class="dot"></span>${verdict} · interactive</span>
+        <span class="chip ${chipClass[voice]}">${voice} · voice</span>
+        <span class="budgets num">effective ${fmtMs(eff)} vs voice ${BUDGET_VOICE_MS}ms / interactive ${BUDGET_INTERACTIVE_MS}ms</span>
+      </div>
+      ${flagged ? `<div class="flag">p99 likely includes cold start / low sample (n=${n}) — verdict uses p95.</div>` : ''}
+      <div>
+        <span class="label">end-to-end response time</span>
+        <div class="stats">
+          ${['p50', 'p90', 'p95', 'p99', 'avg'].map((k) => `
+            <span class="stat"><span class="label">${k}</span><span class="num">${fmtMs(lat[k])}</span></span>`).join('')}
+        </div>
+      </div>
+      <div class="traffic">
+        <span class="stat"><span class="label">requests</span><span class="num">${n}</span></span>
+        <span class="stat"><span class="label">req/min</span><span class="num">${ratePerMin.toFixed(2)}</span></span>
+        <span class="stat"><span class="label">error rate</span><span class="num">${pctErr.toFixed(1)}%</span></span>
+        <span class="stat"><span class="label">4xx / 5xx</span><span class="num">${err4} / ${err5}</span></span>
+        <span class="stat"><span class="label">replicas avg</span><span class="num">${summary.replicasAvg == null ? '—' : summary.replicasAvg.toFixed(1)}</span></span>
+        ${sparkline(series.spark)}
+      </div>
+      <div class="reco"><span class="label">recommendation</span>${esc(reco)}</div>`;
+  }
+
+  // ---- flow ----
+  async function loadCard(el, model, dep) {
+    try {
+      const params = metricsParams();
+      const [summary, series] = await Promise.all([
+        api(`models/${model.id}/deployments/${dep.id}/metrics`, { mode: 'SUMMARY', ...params }),
+        api(`models/${model.id}/deployments/${dep.id}/metrics`,
+          { mode: 'SERIES', metrics: 'baseten_inference_requests_total', ...params }),
+      ]);
+      renderMetrics(el, model, dep, parseSummary(summary), parseSeries(series));
+    } catch (err) {
+      if (err.status === 401) throw err;
+      el.querySelector('.body').innerHTML =
+        `<span class="inline-err">metrics unavailable: ${esc(err.message)}</span>`;
+    }
+  }
+
+  async function refresh() {
+    if (!apiKey || loading || Date.now() < pausedUntil) return;
+    loading = true;
+    $('statusTxt').textContent = 'loading…';
+    try {
+      const modelsRes = await api('models');
+      const models = modelsRes.models || [];
+      $('empty').hidden = models.length > 0;
+      const cards = $('cards');
+      cards.innerHTML = '';
+      const pairs = [];
+      await mapLimit(models, 4, async (model) => {
+        const depsRes = await api(`models/${model.id}/deployments`);
+        for (const dep of depsRes.deployments || []) {
+          if (dep.is_production === true) pairs.push({ model, dep });
+        }
+      });
+      const shells = pairs.map(({ model, dep }) => {
+        const el = cardShell(model, dep);
+        cards.appendChild(el);
+        return el;
+      });
+      await mapLimit(pairs, 4, ({ model, dep }, i) => loadCard(shells[i], model, dep));
+      if (models.length && !pairs.length) {
+        $('empty').hidden = false;
+        $('empty').textContent = 'Models found, but none has a production deployment.';
+      }
+      $('statusTxt').textContent = 'updated ' + new Date().toLocaleTimeString();
+    } catch (err) {
+      if (err.status === 401) return disconnect('Key rejected by the Baseten API — paste a valid key.');
+      if (err.status !== 429) showNotice('Failed to load models: ' + err.message);
+      $('statusTxt').textContent = '';
+    } finally {
+      loading = false;
+    }
+  }
+
+  function disconnect(errMsg) {
+    apiKey = null; // wipe
+    stopAuto();
+    $('autoChk').checked = false;
+    $('controls').hidden = true;
+    $('cards').innerHTML = '';
+    $('empty').hidden = true;
+    showNotice('');
+    $('connectPanel').hidden = false;
+    $('connectErr').textContent = errMsg || '';
+    $('connectErr').hidden = !errMsg;
+    $('keyInput').focus();
+  }
+
+  function stopAuto() {
+    if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+  }
+
+  $('connectForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const key = $('keyInput').value.trim();
+    if (!key) return;
+    apiKey = key;
+    $('keyInput').value = '';
+    $('connectErr').hidden = true;
+    $('connectPanel').hidden = true;
+    $('controls').hidden = false;
+    refresh();
+  });
+  $('refreshBtn').addEventListener('click', refresh);
+  $('disconnectBtn').addEventListener('click', () => disconnect());
+  $('windowSel').addEventListener('change', (e) => {
+    windowHours = Number(e.target.value);
+    refresh();
+  });
+  $('autoChk').addEventListener('change', (e) => {
+    stopAuto();
+    if (e.target.checked) autoTimer = setInterval(refresh, 60000);
+  });
+})();
+</script>
+</body>
+</html>
