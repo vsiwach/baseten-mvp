@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baseten Reliability Console — prototype</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* ================= Layout: single fixed viewport ================= */
+  .board {
+    display: grid; height: 100vh; padding: var(--gap); gap: var(--gap);
+    grid-template-rows: 52px 168px 1fr;
+  }
+
+  /* ---------- Top bar ---------- */
+  .topbar { display: flex; align-items: center; gap: 16px; padding: 0 18px; }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand h1 { font-size: 15px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+  .brand .sub { font-size: var(--fs-micro); color: var(--text-3); letter-spacing: .06em; }
+  .nav { display: flex; gap: 4px; margin-left: 8px; }
+  .nav a {
+    font-size: var(--fs-small); font-weight: 600; color: var(--text-3);
+    text-decoration: none; padding: 5px 12px; border-radius: var(--r-sm);
+  }
+  .nav a.active { color: var(--accent); background: var(--accent-bg); }
+  .nav a:hover:not(.active) { color: var(--text-2); }
+  .topbar .spacer { flex: 1; }
+  .release { display: flex; align-items: center; gap: 8px; font-size: var(--fs-small); color: var(--text-2); }
+  .release .num { color: var(--text); }
+  #stateChip { font-size: 12px; padding: 5px 14px; }
+  .switcher { display: flex; gap: 8px; align-items: center; }
+  .switcher .hint { font-size: 10px; color: var(--text-3); letter-spacing: .04em; }
+
+  /* ---------- Hero KPIs ---------- */
+  .hero { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: var(--gap); }
+  .kpi { position: relative; display: flex; flex-direction: column; padding: 16px 22px 14px; overflow: hidden; }
+  .kpi .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .kpi .value-row { display: flex; align-items: baseline; gap: 10px; margin-top: 6px; }
+  .kpi .value { font-size: var(--fs-hero); font-weight: 650; line-height: 1; letter-spacing: -0.02em; }
+  .kpi .unit { font-size: 20px; color: var(--text-2); font-weight: 500; }
+  .kpi .delta { font-size: var(--fs-small); font-weight: 700; }
+  .kpi .foot { margin-top: auto; display: flex; justify-content: space-between; align-items: flex-end; font-size: var(--fs-small); color: var(--text-3); }
+  .kpi svg.spark { position: absolute; right: 18px; top: 44px; opacity: .9; }
+  .kpi-mttr { border-color: var(--stroke-hi); }
+  .kpi-mttr .value { color: var(--accent); }
+  .kpi-mttr.live { border-color: var(--danger-line); background: linear-gradient(180deg, rgba(240,99,85,.06), transparent 60%), var(--panel); }
+  .kpi-mttr.live .value { color: var(--danger); }
+
+  /* ---------- Main area ---------- */
+  .main { display: grid; grid-template-columns: 330px 1fr 460px; gap: var(--gap); min-height: 0; }
+  .col { display: flex; flex-direction: column; gap: var(--gap); min-height: 0; }
+
+  .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px 10px; }
+  .panel-head h2 { font-size: var(--fs-h1); font-weight: 650; }
+  .panel-head .meta { font-size: var(--fs-micro); color: var(--text-3); }
+
+  /* Pools */
+  .pool { padding: 0 16px 14px; flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .pool-card { display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; background: var(--panel-2); border: 1px solid var(--stroke); border-radius: var(--r-md); }
+  .pool-card.warn { border-color: rgba(240,179,78,.4); }
+  .pool-card.breach { border-color: var(--danger-line); background: linear-gradient(180deg, rgba(240,99,85,.05), transparent), var(--panel-2); }
+  .pool-title { display: flex; align-items: center; justify-content: space-between; }
+  .pool-title .id { font-family: var(--font-mono); font-size: 14px; font-weight: 600; }
+  .pool-line { display: flex; justify-content: space-between; align-items: center; font-size: var(--fs-small); color: var(--text-2); }
+  .healthbar { flex: 1; height: 5px; margin: 0 10px; background: var(--panel-3); border-radius: 3px; overflow: hidden; }
+  .healthbar i { display: block; height: 100%; background: var(--ok); border-radius: 3px; transition: width .6s ease, background .3s; }
+  .lat-block { display: grid; grid-template-columns: 44px 1fr auto; gap: 8px; align-items: center; }
+  .lat-block .metric-name { font-size: var(--fs-micro); color: var(--text-3); font-weight: 700; letter-spacing: .06em; }
+  .lat-block .pcts { font-family: var(--font-mono); font-size: 12px; color: var(--text-2); text-align: right; white-space: nowrap; }
+  .lat-block .pcts b { color: var(--text); font-weight: 600; }
+  .lat-block .pcts.breach b { color: var(--danger); }
+  .slo-tag { font-size: 10px; color: var(--text-3); font-family: var(--font-mono); }
+
+  /* Feed */
+  .feed { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .feed-table { flex: 1; min-height: 0; overflow: hidden; padding: 0 8px 10px; display: flex; flex-direction: column; }
+  .feed-row, .feed-header {
+    display: grid; grid-template-columns: 74px 86px 1.3fr 1.4fr 92px 78px;
+    gap: 10px; align-items: center; padding: 7px 10px;
+    font-family: var(--font-mono); font-size: 13px;
+  }
+  .feed-header { font-family: var(--font-ui); font-size: var(--fs-micro); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); border-bottom: 1px solid var(--stroke); }
+  .feed-row { border-radius: var(--r-sm); animation: rowIn .25s ease; color: var(--text-2); }
+  .feed-row:nth-child(odd) { background: rgba(255,255,255,.015); }
+  .feed-row .req { color: var(--text); font-weight: 600; }
+  .feed-row .replica { color: var(--accent); }
+  .feed-row .replica.spill { color: var(--warn); }
+  .feed-row .reason { color: var(--text-3); }
+  .feed-row .reason.spill { color: var(--warn); }
+  .feed-row .ttft.slow { color: var(--danger); font-weight: 600; }
+  .tier { font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; padding: 2px 7px; border-radius: 4px; background: var(--panel-3); color: var(--text-2); justify-self: start; font-family: var(--font-ui); }
+  .tier.realtime { color: var(--accent); background: var(--accent-bg); }
+
+  /* Incident panel */
+  .incident { display: flex; flex-direction: column; min-height: 0; flex: 1.35; transition: box-shadow .4s, border-color .4s; }
+  .incident.live { border-color: var(--danger-line); box-shadow: 0 0 0 1px var(--danger-line), 0 8px 40px rgba(240,99,85,.15); }
+  .board.dimmed .panel:not(.incident):not(.kpi-mttr) { opacity: .72; transition: opacity .5s; }
+  .inc-body { padding: 4px 16px 14px; display: flex; flex-direction: column; gap: 12px; min-height: 0; flex: 1; }
+  .inc-title { font-size: var(--fs-body); color: var(--text-2); line-height: 1.4; }
+  .inc-title b { color: var(--text); font-weight: 600; }
+  .inc-mttr { display: flex; align-items: baseline; gap: 12px; }
+  .inc-mttr .value { font-family: var(--font-mono); font-size: 44px; font-weight: 650; line-height: 1; color: var(--text); font-variant-numeric: tabular-nums; }
+  .inc-mttr.live .value { color: var(--danger); }
+  .inc-mttr .cap { font-size: var(--fs-small); color: var(--text-3); }
+  .inc-mttr .baseline { margin-left: auto; text-align: right; font-size: var(--fs-small); color: var(--text-3); }
+  .inc-mttr .baseline b { color: var(--text-2); font-family: var(--font-mono); }
+
+  .phasebar { display: flex; height: 26px; border-radius: var(--r-sm); overflow: hidden; gap: 2px; }
+  .phase { position: relative; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); background: var(--panel-3); overflow: hidden; }
+  .phase i { position: absolute; inset: 0; width: 0%; background: var(--accent-bg); border-bottom: 2px solid var(--accent); }
+  .phase span { position: relative; }
+  .phase.done i { width: 100%; }
+  .phase.done span { color: var(--accent); }
+  .incident.live .phase.done i { background: var(--danger-bg); border-color: var(--danger); }
+  .incident.live .phase.done span { color: var(--danger); }
+  .phase.done.resolved i, .incident:not(.live) .phase.done i { background: var(--ok-bg); border-color: var(--ok); }
+  .incident:not(.live) .phase.done span { color: var(--ok); }
+
+  .transcript { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 4px; }
+  .action { display: grid; grid-template-columns: 14px 1fr; gap: 10px; align-items: baseline; font-family: var(--font-mono); font-size: 12.5px; color: var(--text-2); line-height: 1.45; animation: rowIn .3s ease; }
+  .action .tick { color: var(--accent); font-weight: 700; }
+  .action.probe-fail .tick { color: var(--danger); }
+  .action.probe-pass .tick { color: var(--ok); }
+  .inc-foot { display: flex; justify-content: space-between; align-items: center; font-size: var(--fs-small); }
+  .inc-foot a { color: var(--accent); text-decoration: none; }
+  .inc-foot a:hover { text-decoration: underline; }
+  .agent-badge { display: inline-flex; align-items: center; gap: 6px; color: var(--text-3); }
+
+  /* Learning panel */
+  .learning { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .learn-body { padding: 2px 16px 14px; display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: hidden; }
+  .policy-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+  .policy-cell { background: var(--panel-2); border: 1px solid var(--stroke); border-radius: var(--r-sm); padding: 7px 8px; }
+  .policy-cell .k { font-size: 9.5px; color: var(--text-3); letter-spacing: .04em; text-transform: uppercase; font-weight: 700; line-height: 1.3; }
+  .policy-cell .v { font-family: var(--font-mono); font-size: 15px; color: var(--text); margin-top: 3px; }
+  .learn-row { display: flex; gap: var(--gap); align-items: stretch; }
+  .probes { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  .probe { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 12.5px; padding: 4px 10px; border-radius: var(--r-sm); background: var(--panel-2); border: 1px solid var(--stroke); }
+  .probe .ok { color: var(--ok); } .probe .fail { color: var(--danger); }
+  .reward { flex: 1.1; background: var(--panel-2); border: 1px solid var(--stroke); border-radius: var(--r-md); padding: 10px 12px; display: flex; flex-direction: column; gap: 5px; }
+  .reward .total { display: flex; justify-content: space-between; align-items: baseline; }
+  .reward .total .v { font-family: var(--font-mono); font-size: 24px; font-weight: 650; color: var(--accent); }
+  .reward .line { display: flex; justify-content: space-between; font-size: 12px; color: var(--text-2); font-family: var(--font-mono); }
+  .reward .line span:first-child { color: var(--text-3); font-family: var(--font-ui); }
+  .outcome-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+<div class="board" id="board">
+
+  <!-- ================= Top bar ================= -->
+  <header class="panel topbar">
+    <div class="brand">
+      <h1>Baseten Reliability Console</h1>
+      <span class="sub">prototype · self-serve incident management</span>
+    </div>
+    <nav class="nav">
+      <a class="active" href="index.html">Operate</a>
+      <a href="deploy.html">Deploy</a>
+      <a href="roadmap.html">Roadmap</a>
+    </nav>
+    <div class="spacer"></div>
+    <div class="release" id="release"></div>
+    <span class="chip" id="provChip" title="data source"></span>
+    <span class="chip chip-ok" id="stateChip"><span class="dot"></span><span id="stateLabel">Healthy</span></span>
+    <div class="switcher">
+      <button class="btn danger" id="btnChaos" title="Degrade the dedicated pool and watch the agent resolve it">Trigger incident ▸</button>
+    </div>
+  </header>
+
+  <!-- ================= Hero KPIs ================= -->
+  <section class="hero">
+    <div class="panel kpi" id="kpiTpot">
+      <div class="top"><span class="label">TPOT p99</span><span class="delta num delta-good" id="tpotDelta"></span></div>
+      <div class="value-row"><span class="value num" id="tpotVal">—</span><span class="unit">ms</span></div>
+      <svg class="spark" id="tpotSpark" width="150" height="44" viewBox="0 0 150 44"></svg>
+      <div class="foot"><span>voice SLO <b class="num" id="tpotSlo"></b></span><span id="tpotVsSlo" class="num"></span></div>
+    </div>
+    <div class="panel kpi" id="kpiCost">
+      <div class="top"><span class="label">Blended cost</span><span class="delta num delta-good" id="costDelta"></span></div>
+      <div class="value-row"><span class="value num" id="costVal">—</span><span class="unit">$/Mtok</span></div>
+      <svg class="spark" id="costSpark" width="150" height="44" viewBox="0 0 150 44"></svg>
+      <div class="foot"><span>vs single-pool baseline</span></div>
+    </div>
+    <div class="panel kpi kpi-mttr" id="kpiMttr">
+      <div class="top"><span class="label" id="mttrLabel">MTTR — last incident</span><span class="delta num delta-good" id="mttrDelta"></span></div>
+      <div class="value-row"><span class="value num" id="mttrVal">—</span><span class="unit">s</span></div>
+      <div class="foot"><span>agent-on, autonomous resolution</span><span>agent-off baseline: <b>never</b></span></div>
+    </div>
+  </section>
+
+  <!-- ================= Main ================= -->
+  <section class="main">
+
+    <!-- Pools -->
+    <div class="panel pool-wrap col" style="gap:0">
+      <div class="panel-head"><h2>Pools</h2><span class="meta">/v1/metrics/slo · /v1/pools</span></div>
+      <div class="pool" id="pools"></div>
+    </div>
+
+    <!-- Placement feed -->
+    <div class="panel feed">
+      <div class="panel-head"><h2>Placement feed</h2><span class="meta"><span class="pulsing" style="color:var(--accent)">●</span> live · /v1/placement/feed</span></div>
+      <div class="feed-table">
+        <div class="feed-header"><span>req</span><span>tier</span><span>replica</span><span>reason</span><span style="text-align:right">ttft</span><span style="text-align:right">decide</span></div>
+        <div id="feedRows" style="flex:1;min-height:0;overflow:hidden"></div>
+      </div>
+    </div>
+
+    <!-- Right column -->
+    <div class="col">
+      <div class="panel incident" id="incidentPanel">
+        <div class="panel-head"><h2>Incident</h2><span class="chip" id="incChip"></span></div>
+        <div class="inc-body" id="incBody"></div>
+      </div>
+      <div class="panel learning">
+        <div class="panel-head"><h2>Learning · RL episode</h2><span class="meta">/v1/learning/episodes</span></div>
+        <div class="learn-body" id="learnBody"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script src="recording-data.js"></script>
+<script>
+/* ============================================================
+   devboard app — consumes MockAPI only.
+   Integration: swap MockAPI for real fetch/EventSource; all
+   rendering below reads contract fields verbatim.
+   ============================================================ */
+(function () {
+  const api = window.MockAPI;
+  const $ = (id) => document.getElementById(id);
+  const fmt = (n, d = 1) => Number(n).toFixed(d);
+  const pct = (n) => (n > 0 ? "+" : "") + fmt(n, 1) + "%";
+
+  /* ---------- sparkline ---------- */
+  function spark(svg, data, color) {
+    const w = 150, h = 44, min = Math.min(...data), max = Math.max(...data);
+    const pts = data.map((v, i) =>
+      `${(i / (data.length - 1)) * w},${h - 5 - ((v - min) / (max - min || 1)) * (h - 12)}`).join(" ");
+    svg.innerHTML = `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" opacity="0.7"/>`;
+  }
+
+  /* ---------- histogram ---------- */
+  function histSVG(hist, color, w = 120, h = 26) {
+    const max = Math.max(...hist.counts);
+    const bw = w / hist.counts.length;
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
+      hist.counts.map((c, i) => {
+        const bh = Math.max(2, (c / max) * (h - 2));
+        return `<rect x="${i * bw + 1}" y="${h - bh}" width="${bw - 2}" height="${bh}" rx="1.5" fill="${color}" opacity="0.55"/>`;
+      }).join("") + `</svg>`;
+  }
+
+  /* ---------- hero ---------- */
+  async function renderHero() {
+    const h = await api.getHero();
+    $("tpotVal").textContent = fmt(h.tpot_p99_ms);
+    $("tpotDelta").textContent = pct(h.tpot_delta_pct);
+    $("tpotSlo").textContent = "p99 < " + h.tpot_slo_ms + "ms";
+    const head = ((h.tpot_slo_ms - h.tpot_p99_ms) / h.tpot_slo_ms) * 100;
+    $("tpotVsSlo").textContent = fmt(head, 0) + "% headroom";
+    $("tpotVal").style.color = h.tpot_p99_ms > h.tpot_slo_ms ? "var(--danger)" : "var(--text)";
+    $("costVal").textContent = fmt(h.cost_per_mtok_usd, 2);
+    $("costDelta").textContent = pct(h.cost_delta_pct);
+    spark($("tpotSpark"), h.spark.tpot, "#3fd8e4");
+    spark($("costSpark"), h.spark.cost, "#3fd8a0");
+    if (!liveIncidentActive) {
+      $("mttrVal").textContent = fmt(h.mttr_s);
+      $("mttrDelta").textContent = pct(h.mttr_delta_pct);
+      $("mttrLabel").textContent = "MTTR — last incident";
+    }
+  }
+
+  /* ---------- release chip ---------- */
+  async function renderRelease() {
+    const r = await api.getReleases();
+    $("release").innerHTML =
+      `<span class="label">active</span> <span class="num">${r.model}</span>` +
+      ` <span class="chip chip-accent" style="padding:2px 8px">${r.strategy || r.stage || "stable"}</span>` +
+      (r.last_rollback ? ` <span style="color:var(--text-3)">rolled back ${r.last_rollback}</span>` : "");
+  }
+
+  /* ---------- pools ---------- */
+  async function renderPools() {
+    const [sloRes, poolRes] = await Promise.all([api.getSLO(), api.getPools()]);
+    const utilBy = Object.fromEntries(poolRes.pools.map((p) => [p.id, p]));
+    /* TTFT SLO of record is rendered from policy.probe_slo_ms (only
+       source of the 500ms bound in the contract) */
+    const eps = await api.getLearningEpisodes();
+    const ttftSlo = eps[0]?.policy?.probe_slo_ms ?? null;
+    $("pools").innerHTML = sloRes.pools.map((p) => {
+      const u = utilBy[p.id] || {};
+      const cls = p.status === "ok" ? "" : p.status === "warn" ? "warn" : "breach";
+      const chip = p.status === "ok" ? "chip-ok" : p.status === "warn" ? "chip-warn" : "chip-danger";
+      const hbColor = p.health > 90 ? "var(--ok)" : p.health > 60 ? "var(--warn)" : "var(--danger)";
+      const ttftBad = ttftSlo && p.ttft.p99 > ttftSlo;
+      return `<div class="pool-card ${cls}" style="margin-bottom:12px">
+        <div class="pool-title">
+          <span class="id">${p.id}</span>
+          <span class="chip ${chip}"><span class="dot"></span>${p.status}</span>
+        </div>
+        <div class="pool-line"><span class="label" style="width:44px">health</span>
+          <span class="healthbar"><i style="width:${p.health}%;background:${hbColor}"></i></span>
+          <span class="num">${p.health}</span></div>
+        <div class="pool-line"><span class="label" style="width:44px">util</span>
+          <span class="healthbar"><i style="width:${u.util_pct ?? 0}%;background:var(--accent-dim)"></i></span>
+          <span class="num">${u.util_pct ?? "—"}%</span></div>
+        <div class="lat-block">
+          <span class="metric-name">TTFT</span>
+          ${histSVG(p.ttft.hist, ttftBad ? "#f06355" : "#3fd8e4")}
+          <span class="pcts ${ttftBad ? "breach" : ""}">${fmt(p.ttft.p50, 0)} / ${fmt(p.ttft.p95, 0)} / <b>${fmt(p.ttft.p99, 0)}</b>ms</span>
+        </div>
+        <div class="lat-block">
+          <span class="metric-name">TPOT</span>
+          ${histSVG(p.tpot.hist, "#3fd8e4")}
+          <span class="pcts">${fmt(p.tpot.p50, 1)} / ${fmt(p.tpot.p95, 1)} / <b>${fmt(p.tpot.p99, 1)}</b>ms</span>
+        </div>
+        <div class="pool-line" style="justify-content:flex-end">
+          <span class="slo-tag">SLO of record: TTFT p99 &lt; ${ttftSlo}ms · p50/p95/p99</span>
+        </div>
+      </div>`;
+    }).join("");
+  }
+
+  /* ---------- placement feed ---------- */
+  const MAX_ROWS = 14;
+  api.subscribeFeed((item) => {
+    const rows = $("feedRows");
+    const div = document.createElement("div");
+    div.className = "feed-row";
+    const spill = item.replica.includes("spill");
+    const slow = item.ttft_ms > 500;
+    div.innerHTML =
+      `<span class="req">${item.req}</span>` +
+      `<span class="tier ${item.wl_tier}">${item.wl_tier}</span>` +
+      `<span class="replica ${spill ? "spill" : ""}">${item.replica}</span>` +
+      `<span class="reason ${spill ? "spill" : ""}">${item.reason}</span>` +
+      `<span class="ttft num ${slow ? "slow" : ""}" style="text-align:right">${fmt(item.ttft_ms)}ms</span>` +
+      `<span class="num" style="text-align:right;color:var(--text-3)">${fmt(item.decide_ms, 2)}ms</span>`;
+    rows.prepend(div);
+    while (rows.children.length > MAX_ROWS) rows.lastChild.remove();
+  });
+
+  /* ---------- incident panel ---------- */
+  let liveIncidentActive = false;
+  let liveStartWall = null;
+
+  async function renderIncident() {
+    const list = await api.getIncidents();
+    const inc = list[0];
+    if (!inc) return;
+    const wasLive = liveIncidentActive;
+    liveIncidentActive = !!inc.live;
+    if (liveIncidentActive && !wasLive) liveStartWall = performance.now();
+
+    $("incidentPanel").classList.toggle("live", inc.live);
+    document.getElementById("board").classList.toggle("dimmed", inc.live);
+    const chip = $("incChip");
+    chip.className = "chip " + (inc.live ? "chip-danger pulsing" : "chip-ok");
+    chip.innerHTML = `<span class="dot"></span>${inc.live ? "live" : "resolved"}`;
+
+    /* phase progress from phase_ms vs elapsed */
+    const total = inc.phase_ms.detect + inc.phase_ms.diagnose + inc.phase_ms.resolve;
+    const elapsed = inc.live ? inc.mttr_s * 1000 : total;
+    let acc = 0;
+    const phases = ["detect", "diagnose", "resolve"].map((name) => {
+      const dur = inc.phase_ms[name];
+      const done = elapsed >= acc + dur;
+      const frac = done ? 1 : Math.max(0, (elapsed - acc) / dur);
+      acc += dur;
+      return { name, dur, done, frac };
+    });
+
+    const actionCls = (a) =>
+      a.startsWith("probe failed") ? "probe-fail" : a.startsWith("probe passed") ? "probe-pass" : "";
+    const tick = (a) => a.startsWith("probe failed") ? "✕" : a.startsWith("probe passed") ? "✓" : "›";
+
+    $("incBody").innerHTML = `
+      <div class="inc-title"><b>${inc.id}</b> — ${inc.title}</div>
+      <div class="inc-mttr ${inc.live ? "live" : ""}">
+        <span class="value" id="incMttrVal">${fmt(inc.mttr_s)}s</span>
+        <span class="cap">${inc.live ? "MTTR — counting" : "MTTR — frozen at resolution"}</span>
+        <span class="baseline">agent-off baseline<br><b>never resolves</b></span>
+      </div>
+      <div class="phasebar">${phases.map((p) =>
+        `<div class="phase ${p.done ? "done" : ""}" style="flex:${p.dur}">
+           <i style="width:${(p.frac * 100).toFixed(0)}%"></i><span>${p.name} · ${(p.dur / 1000).toFixed(1)}s</span>
+         </div>`).join("")}</div>
+      <div class="transcript">${inc.actions.map((a) =>
+        `<div class="action ${actionCls(a)}"><span class="tick">${tick(a)}</span><span>${a}</span></div>`).join("")}</div>
+      <div class="inc-foot">
+        <span class="agent-badge">⬡ resolved by incident agent — no human action</span>
+        <a href="${inc.postmortem_url}">postmortem →</a>
+      </div>`;
+
+    /* Hero MTTR mirrors the live counter */
+    if (inc.live) {
+      $("mttrVal").textContent = fmt(inc.mttr_s);
+      $("mttrLabel").textContent = inc.id + " — resolving";
+      $("kpiMttr").classList.add("live");
+    } else {
+      $("kpiMttr").classList.remove("live");
+    }
+  }
+
+  /* ---------- learning panel ---------- */
+  async function renderLearning() {
+    const eps = await api.getLearningEpisodes();
+    const e = eps[0];
+    if (!e) { $("learnBody").innerHTML = ""; return; }
+    const polLabels = {
+      breach_rate_threshold: "breach rate",
+      probe_interval_s: "probe every",
+      probes_to_reinstate: "reinstate after",
+      probe_slo_ms: "probe SLO",
+      escalate_after_failures: "escalate after",
+    };
+    const polUnits = { probe_interval_s: "s", probe_slo_ms: "ms", probes_to_reinstate: "✓", escalate_after_failures: "✕" };
+    $("learnBody").innerHTML = `
+      <div class="pool-line" style="margin-top:4px">
+        <span class="num" style="color:var(--text)">${e.episode_id}</span>
+        <span style="color:var(--text-3);font-size:var(--fs-small)">from ${e.source} · shaped-reward RL episode</span>
+      </div>
+      <div class="policy-grid">${Object.entries(e.policy).map(([k, v]) =>
+        `<div class="policy-cell"><div class="k">${polLabels[k] || k}</div>
+         <div class="v">${v}${polUnits[k] || ""}</div></div>`).join("")}</div>
+      <div class="learn-row">
+        <div class="probes">
+          <span class="label">probes</span>
+          ${e.probes.map((p) =>
+            `<div class="probe"><span class="${p.ok ? "ok" : "fail"}">${p.ok ? "✓ pass" : "✕ fail"}</span><span class="num">${p.ms}ms</span></div>`).join("")}
+        </div>
+        <div class="reward">
+          <div class="total"><span class="label">reward</span><span class="v">${e.reward.total > 0 ? "+" : ""}${e.reward.total}</span></div>
+          <div class="line"><span>resolved bonus</span><span>+${e.reward.shaping.resolved_bonus}</span></div>
+          <div class="line"><span>MTTR penalty</span><span>${e.reward.shaping.mttr_penalty}</span></div>
+          <div class="line"><span>escalation penalty</span><span>${e.reward.shaping.escalation_penalty === 0 ? "0" : e.reward.shaping.escalation_penalty}</span></div>
+          <div class="outcome-chips" style="margin-top:4px">
+            <span class="chip ${e.outcome.resolved ? "chip-ok" : "chip-danger"}">resolved</span>
+            <span class="chip ${e.outcome.quarantined ? "chip-warn" : "chip-ok"}">quarantined</span>
+            <span class="chip ${e.outcome.escalated ? "chip-danger" : "chip-ok"}">no escalation</span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  /* ---------- board state ---------- */
+  const stateStyles = {
+    HEALTHY:       ["chip-ok", "Healthy"],
+    DEGRADING:     ["chip-warn", "Degrading"],
+    LIVE_INCIDENT: ["chip-danger pulsing", "Live incident"],
+    REPLAY:        ["chip-replay", "Replay"],
+  };
+  api.subscribeState((s) => {
+    const replay = api.isReplay();
+    const [cls, label] = replay && s !== "HEALTHY" ? ["chip-replay pulsing", "Replay · " + stateStyles[s][1]] : stateStyles[s];
+    $("stateChip").className = "chip " + cls;
+    $("stateLabel").textContent = label;
+    $("btnChaos").disabled = s !== "HEALTHY";
+    renderPools(); renderIncident(); renderHero(); renderLearning();
+  });
+
+  $("btnChaos").addEventListener("click", () => api.injectChaos());
+
+  /* provenance chip: honest about recording vs live, no fabrication */
+  (async () => {
+    const chip = $("provChip");
+    if (api.isReplay && api.isReplay() && api.recordingMeta) {
+      const m = await api.recordingMeta();
+      chip.className = "chip chip-replay";
+      chip.textContent = "▶ recording · " + (m.source || "real session");
+      chip.title = "captured " + (m.recorded_at || "") + " — plays at true speed";
+      $("btnChaos").textContent = "▶ Play the incident";
+    } else {
+      chip.className = "chip chip-ok";
+      chip.textContent = "● live · router connected";
+    }
+  })();
+
+  /* ---------- polling cadence (mirrors integration plan) ---------- */
+  renderHero(); renderRelease(); renderPools(); renderIncident(); renderLearning();
+  setInterval(renderPools, 2000);
+  setInterval(renderHero, 3000);
+  setInterval(renderLearning, 4000);
+  setInterval(renderIncident, 250); /* live MTTR + phase bar smoothness */
+})();
+</script>
+</body>
+</html>
