@@ -1,5 +1,9 @@
 # console-live — read-only Baseten fleet observer
 
+**Live:** https://baseten-reliability-console.vercel.app — paste your Baseten
+API key (it stays in your browser's memory; the proxy forwards it per-request
+to api.baseten.co and never stores or logs it).
+
 ## Ship it
 
 One click (imports this repo; set **Root Directory = `console-live`** when

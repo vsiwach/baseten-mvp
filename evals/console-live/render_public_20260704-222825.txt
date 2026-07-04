@@ -1,0 +1,40 @@
+
+================ DEFAULT 1h WINDOW ================
+--- card 1 ---
+  head: qwen3-8b-vllm INACTIVE deployment-3 · qvm1v4e T4x8x32 - 1 T4 GPU, 16 GiB VRAM, 8 vCPUs, 32 GiB RAM · 0 active · replicas 0–1 scale-to-zero enabled scaled to zero now loading metrics… deployment · GET /v1/models/3ydn1e43/deployments
+  body: No requests in this window (metrics can lag 1–3 min). Replicas avg: — recommendation No requests observed in the last 1h — widen the window or send traffic to get a signal.
+  chips: (none)
+  foot: deployment · GET /v1/models/3ydn1e43/deployments latency/replicas · GET /v1/models/3ydn1e43/deployments/qvm1v4e/metrics · SUMMARY · last 1h · baseten_end_to_end_response_time_seconds (full response incl. token generation, not TTFT) traffic · GET /v1/models/3ydn1e43/deployments/qvm1v4e/metrics · SERIES · last 1h · baseten_inference_requests_total
+--- card 2 ---
+  head: qwen3-8b-pool INACTIVE deployment-1 · wno2dv0 L4:2x24x96 - 2 L4 GPU, 48 GiB video memory, 24 vCPU, 96 GiB · 0 active · replicas 0–1 scale-to-zero enabled scaled to zero now loading metrics… deployment · GET /v1/models/qrj78jv3/deployments
+  body: No requests in this window (metrics can lag 1–3 min). Replicas avg: — recommendation No requests observed in the last 1h — widen the window or send traffic to get a signal.
+  chips: (none)
+  foot: deployment · GET /v1/models/qrj78jv3/deployments latency/replicas · GET /v1/models/qrj78jv3/deployments/wno2dv0/metrics · SUMMARY · last 1h · baseten_end_to_end_response_time_seconds (full response incl. token generation, not TTFT) traffic · GET /v1/models/qrj78jv3/deployments/wno2dv0/metrics · SERIES · last 1h · baseten_inference_requests_total
+
+[cooling down 60s before switching window, to stay under the API rate limit]
+
+================ 6h WINDOW ================
+--- card 1 ---
+  head: qwen3-8b-pool INACTIVE deployment-1 · wno2dv0 L4:2x24x96 - 2 L4 GPU, 48 GiB video memory, 24 vCPU, 96 GiB · 0 active · replicas 0–1 scale-to-zero enabled scaled to zero now loading metrics… deployment · GET /v1/models/qrj78jv3/deployments
+  body: No requests in this window (metrics can lag 1–3 min). Replicas avg: — recommendation No requests observed in the last 6h — widen the window or send traffic to get a signal.
+  chips: (none)
+  foot: deployment · GET /v1/models/qrj78jv3/deployments latency/replicas · GET /v1/models/qrj78jv3/deployments/wno2dv0/metrics · SUMMARY · last 6h · baseten_end_to_end_response_time_seconds (full response incl. token generation, not TTFT) traffic · GET /v1/models/qrj78jv3/deployments/wno2dv0/metrics · SERIES · last 6h · baseten_inference_requests_total
+--- card 2 ---
+  head: qwen3-8b-vllm INACTIVE deployment-3 · qvm1v4e T4x8x32 - 1 T4 GPU, 16 GiB VRAM, 8 vCPUs, 32 GiB RAM · 0 active · replicas 0–1 scale-to-zero enabled scaled to zero now loading metrics… deployment · GET /v1/models/3ydn1e43/deployments
+  body: AMBER · interactive AMBER · voice effective 104080ms vs voice 500ms / interactive 800ms p99 likely includes cold start / low sample (n=14) — verdict uses p95. end-to-end response time p50 2154ms p90 83766ms p95 104080ms p99 111696ms avg 31787ms requests 14 req/min 0.04 error rate 0.0% 4xx / 5xx 0 / 0 replicas avg 0.1 recommendation Window looks cold-start-dominated or low-sample (n=14, p95 104080ms) — widen the window or send steady traffic before tuning autoscaling.
+  chips: chip-warn:AMBER · interactive | chip-warn:AMBER · voice
+  foot: deployment · GET /v1/models/3ydn1e43/deployments latency/replicas · GET /v1/models/3ydn1e43/deployments/qvm1v4e/metrics · SUMMARY · last 6h · baseten_end_to_end_response_time_seconds (full response incl. token generation, not TTFT) traffic · GET /v1/models/3ydn1e43/deployments/qvm1v4e/metrics · SERIES · last 6h · baseten_inference_requests_total
+
+================ ASSERTIONS ================
+PASS  qwen3-8b-vllm card exists
+PASS  no card for non-production deployment q86yjdy
+PASS  instance contains T4 — T4x8x32
+PASS  status INACTIVE
+PASS  renders request count or the no-traffic state — n=14
+PASS  renders numeric p99 or the no-traffic state — p99=111696ms
+PASS  low-sample annotation present iff n<20 or p99>>p50 — n=14, flagged=true
+PASS  interactive verdict chip renders (AMBER when flagged, never bare RED on flagged data) — chip-warn:AMBER · interactive
+
+[1h report] qwen card present; rendered the "no requests in window (metrics can lag 1–3 min)" state.
+
+8/8 assertions passed

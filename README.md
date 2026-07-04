@@ -120,6 +120,14 @@ python3 tools/kb/index_kb.py tools/kb/baseten   # after re-downloading llms-full
 python3 tools/kb/search.py tools/kb/baseten "engine builder quantization"
 ```
 
+## Live console
+
+**https://baseten-reliability-console.vercel.app** — the bring-your-own-key
+read-only Reliability Console ([console-live/](console-live/)): paste a
+Baseten API key and see your production deployments' real metrics, SLO
+posture, and one grounded recommendation each. The key stays in the browser;
+a same-origin proxy forwards it per-request to api.baseten.co only.
+
 ## Repository map
 
 ```
@@ -136,6 +144,7 @@ tools/chaos.py      fault injection + scripted MTTR drills (evidence writer)
 tools/kb/           docs corpus + search behind the baseten-docs agent
 benchmarks/         load harness + raw/ (every number's source of truth)
 evals/              the three adversarial eval agents' verdicts + evidence
+console-live/       BYO-key live Reliability Console (deployed, see above)
 site/               static replay of the live demo (Vercel-ready, no keys)
 docs/               friction log, JD, diagrams
 ```
