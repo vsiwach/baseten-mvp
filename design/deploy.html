@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deploy — Reliability console</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shell.css">
+</head>
+<body>
+<main class="page" id="main" data-screen-label="Deploy">
+
+  <div style="display:flex; align-items:baseline; gap:var(--s-3)">
+    <h1 class="page-title">Deploy timeline</h1>
+    <p class="page-sub" id="deploy-sub"></p>
+  </div>
+
+  <section class="split" style="grid-template-columns: minmax(0, 2fr) minmax(0, 1fr)">
+    <div class="card">
+      <div class="card-head"><h2>Attempts → live</h2><span class="right" id="tl-meta"></span></div>
+      <div class="card-body" id="timeline" style="padding: var(--s-5)"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Active release</h2></div>
+      <div class="card-body" id="active-release"></div>
+    </div>
+  </section>
+</main>
+
+<script src="mock-data.js"></script>
+<script src="console.js"></script>
+<script>
+(async () => {
+  await renderShell("Deploy");
+  const [tl, active] = await Promise.all([
+    fetchJSON("/v1/releases/timeline"), fetchJSON("/v1/releases/active")
+  ]);
+
+  document.getElementById("deploy-sub").innerHTML =
+    'targets tier <span class="num">' + esc(tl.tier_target) + '</span> · strategy <span class="num">' + esc(tl.strategy) + '</span>';
+  document.getElementById("tl-meta").innerHTML = '<span class="num">' + esc(tl.version) + '</span>';
+
+  const outcomeMeta = {
+    rolled_back: { label: "rolled back", color: "var(--bad)",  bg: "var(--bad-bg)",  border: "var(--bad-border)",  text: "var(--bad-text)" },
+    passed:      { label: "passed",      color: "var(--ok)",   bg: "var(--ok-bg)",   border: "var(--ok-border)",   text: "var(--accent-strong)" },
+    live:        { label: "live",        color: "var(--ok)",   bg: "var(--ok-bg)",   border: "var(--ok-border)",   text: "var(--accent-strong)" }
+  };
+
+  document.getElementById("timeline").innerHTML =
+    '<ol style="list-style:none; margin:0; padding:0; position:relative">' +
+    tl.attempts.map((a, i) => {
+      const m = outcomeMeta[a.outcome];
+      const last = i === tl.attempts.length - 1;
+      return '<li style="display:grid; grid-template-columns: 20px 1fr; gap: var(--s-4); position:relative; padding-bottom:' + (last ? "0" : "var(--s-6)") + '">' +
+        '<div style="display:flex; flex-direction:column; align-items:center">' +
+          '<span style="width:12px; height:12px; border-radius:50%; background:' + (a.outcome === "live" ? m.color : "var(--bg-surface)") + '; border:2px solid ' + m.color + '; margin-top:3px; flex:none"></span>' +
+          (last ? "" : '<span style="width:1px; flex:1; background:var(--border); margin-top:4px"></span>') +
+        '</div>' +
+        '<div>' +
+          '<div style="display:flex; align-items:baseline; gap:var(--s-3); flex-wrap:wrap">' +
+            '<strong style="font-size:var(--fs-md)">Attempt ' + a.n + ' — ' + esc(a.stage) + '</strong>' +
+            '<span class="pill" style="color:' + m.text + '; background:' + m.bg + '; border-color:' + m.border + '"><span class="dot" style="background:' + m.color + '"></span>' + m.label + '</span>' +
+            '<span class="caption num">' + esc(a.at) + '</span>' +
+          '</div>' +
+          '<p style="margin:6px 0 0; color:var(--text-secondary); max-width:64ch">' + esc(a.note) + '</p>' +
+        '</div>' +
+      '</li>';
+    }).join("") + '</ol>';
+
+  document.getElementById("active-release").innerHTML =
+    '<dl style="margin:0; display:grid; grid-template-columns:auto 1fr; gap: var(--s-2) var(--s-4); font-size:var(--fs-body)">' +
+      '<dt class="caption">version</dt><dd class="num" style="margin:0">' + esc(active.version) + '</dd>' +
+      '<dt class="caption">model</dt><dd class="num" style="margin:0">' + esc(active.model) + '</dd>' +
+      '<dt class="caption">strategy</dt><dd class="num" style="margin:0">' + esc(active.strategy) + '</dd>' +
+      '<dt class="caption">tier target</dt><dd class="num" style="margin:0">' + esc(tl.tier_target) + '</dd>' +
+    '</dl>' +
+    '<p class="caption" style="margin:var(--s-3) 0 0">Prior build kept warm for instant rollback. Guardrail probes run against the tier SLO of record.</p>';
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Roadmap — Reliability console</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shell.css">
+</head>
+<body>
+<main class="page" id="main" data-screen-label="Roadmap">
+
+  <div style="display:flex; align-items:baseline; gap:var(--s-3)">
+    <h1 class="page-title">Roadmap</h1>
+    <p class="page-sub">Prioritized product findings from operating this workload</p>
+  </div>
+
+  <div class="card">
+    <table class="data" aria-label="Prioritized findings">
+      <thead><tr>
+        <th style="width:36px" class="num">#</th><th style="width:30%">Finding</th><th>Detail</th>
+        <th style="width:80px">Impact</th><th style="width:80px">Effort</th><th style="width:100px">Status</th>
+      </tr></thead>
+      <tbody id="findings"></tbody>
+    </table>
+  </div>
+</main>
+
+<script src="mock-data.js"></script>
+<script src="console.js"></script>
+<script>
+(async () => {
+  await renderShell("Roadmap");
+  const items = await fetchJSON("/v1/roadmap");
+
+  const impactColor = { high: "var(--accent-strong)", medium: "var(--warn-text)", low: "var(--text-muted)" };
+  const statusPill = s => {
+    const map = { ready: "ok", "in review": "warn", proposed: null };
+    const st = map[s];
+    return st
+      ? '<span class="pill" data-status="' + st + '"><span class="dot"></span>' + s + '</span>'
+      : '<span class="caption">' + s + '</span>';
+  };
+
+  document.getElementById("findings").innerHTML = items.map(it =>
+    '<tr>' +
+      '<td class="num" style="color:var(--text-muted)">' + it.rank + '</td>' +
+      '<td style="font-weight:600">' + esc(it.title) + '</td>' +
+      '<td style="color:var(--text-secondary); max-width:56ch">' + esc(it.finding) + '</td>' +
+      '<td><span style="font-size:var(--fs-label); font-weight:600; color:' + impactColor[it.impact] + '">' + it.impact + '</span></td>' +
+      '<td class="caption">' + it.effort + '</td>' +
+      '<td>' + statusPill(it.status) + '</td>' +
+    '</tr>'
+  ).join("");
+})();
+</script>
+</body>
+</html>

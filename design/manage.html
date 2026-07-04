@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manage — Reliability console</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shell.css">
+</head>
+<body>
+<main class="page" id="main" data-screen-label="Manage">
+
+  <div style="display:flex; align-items:baseline; gap:var(--s-3)">
+    <h1 class="page-title">Manage</h1>
+    <p class="page-sub">Human-in-the-loop remediation — every write requires an explicit confirm</p>
+  </div>
+
+  <div id="manage-root" style="display:flex; flex-direction:column; gap:var(--s-4)"></div>
+
+  <!-- Confirm modal -->
+  <div class="modal-backdrop" id="confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="modal">
+      <div class="modal-head" id="confirm-title">Confirm remediation</div>
+      <div class="modal-body">
+        <p style="margin:0; color:var(--text-secondary)" id="confirm-summary"></p>
+        <pre class="code" id="confirm-mutation"></pre>
+        <div id="confirm-drain"></div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="confirm-cancel">Cancel</button>
+        <button class="btn-mutate btn" id="confirm-go">Apply <span class="writes">writes</span></button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="mock-data.js"></script>
+<script src="console.js"></script>
+<script>
+(async () => {
+  await renderShell("Manage");
+  const data = await fetchJSON("/v1/manage/options");
+
+  const kindLabel = { fleet: "fleet upgrade", model: "model upgrade", spill: "spill" };
+  let selected = null;   // {pool, option}
+  let drainMode = "graceful";
+
+  const root = document.getElementById("manage-root");
+
+  function render() {
+    root.innerHTML = data.pools.map(pool =>
+      '<section class="card" aria-label="At-risk pool ' + esc(pool.id) + '">' +
+        '<div class="card-head">' +
+          '<h2>At-risk pool</h2>' +
+          '<span class="num" style="font-size:var(--fs-body); font-weight:600">' + esc(pool.id) + '</span>' +
+          '<span class="pill" data-status="' + pool.status + '"><span class="dot"></span>' + pool.status + '</span>' +
+          '<span class="right">' + esc(pool.risk) + '</span>' +
+        '</div>' +
+        '<div class="card-body" style="display:grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-4)">' +
+          pool.options.map(o => {
+            const isSel = selected && selected.option === o;
+            return '<button class="opt" data-kind="' + o.kind + '" aria-pressed="' + isSel + '" style="' +
+              'text-align:left; display:flex; flex-direction:column; gap:var(--s-2); padding:var(--s-4); ' +
+              'background:' + (isSel ? "var(--accent-bg)" : "var(--bg-surface)") + '; ' +
+              'border:1px solid ' + (isSel ? "var(--accent)" : "var(--border)") + '; ' +
+              'border-radius:var(--r-md); cursor:pointer; font-family:var(--font-sans); font-size:var(--fs-body); color:var(--text)">' +
+              '<span class="label" style="color:' + (isSel ? "var(--accent-strong)" : "var(--text-muted)") + '">' + kindLabel[o.kind] + '</span>' +
+              '<strong style="font-size:var(--fs-md)">' + esc(o.label) + '</strong>' +
+              '<span style="color:var(--text-secondary)">' + esc(o.consequence_text) + '</span>' +
+              '<pre class="code" style="margin-top:auto; font-size:var(--fs-caption)">' + esc(o.mutation_preview) + '</pre>' +
+            '</button>';
+          }).join("") +
+        '</div>' +
+        '<div style="border-top:1px solid var(--border); padding: var(--s-4); display:grid; grid-template-columns: 240px 1fr auto; gap: var(--s-5); align-items:start">' +
+          '<div role="radiogroup" aria-label="Drain style">' +
+            '<div class="label" style="margin-bottom:8px">Drain style</div>' +
+            ["graceful", "immediate"].map(m =>
+              '<label style="display:flex; gap:8px; align-items:center; padding:4px 0; cursor:pointer">' +
+                '<input type="radio" name="drain-' + pool.id + '" value="' + m + '"' + (drainMode === m ? " checked" : "") + '>' +
+                '<span style="font-weight:' + (drainMode === m ? "600" : "400") + '">' + m + '</span>' +
+                (m === "immediate" ? '<span class="pill" data-status="bad" style="margin-left:4px"><span class="dot"></span>errors clients</span>' : '') +
+              '</label>').join("") +
+          '</div>' +
+          '<div>' +
+            '<div class="label" style="margin-bottom:8px">Plan — ' + drainMode + '</div>' +
+            '<ol style="margin:0; padding-left:18px; color:var(--text-secondary); display:flex; flex-direction:column; gap:4px">' +
+              pool.drain.steps[drainMode].map(s => "<li>" + esc(s) + "</li>").join("") +
+            '</ol>' +
+          '</div>' +
+          '<div style="align-self:end">' +
+            '<button class="btn-mutate btn" id="apply" ' + (selected ? "" : "disabled") + '>Review &amp; apply <span class="writes">writes</span></button>' +
+            '<div class="caption" style="margin-top:6px; text-align:right">' + (selected ? "1 mutation staged" : "select an option") + '</div>' +
+          '</div>' +
+        '</div>' +
+      '</section>'
+    ).join("");
+
+    // wire up
+    data.pools.forEach(pool => {
+      root.querySelectorAll(".opt").forEach((btn, i) => {
+        btn.addEventListener("click", () => { selected = { pool, option: pool.options[i] }; render(); });
+      });
+      root.querySelectorAll('input[name="drain-' + pool.id + '"]').forEach(r => {
+        r.addEventListener("change", () => { drainMode = r.value; render(); });
+      });
+    });
+    const apply = document.getElementById("apply");
+    if (apply) apply.addEventListener("click", openConfirm);
+  }
+
+  const modal = document.getElementById("confirm");
+  function openConfirm() {
+    if (!selected) return;
+    const { pool, option } = selected;
+    document.getElementById("confirm-summary").innerHTML =
+      'Applying <strong>' + esc(option.label) + '</strong> to <span class="num">' + esc(pool.id) + '</span> with a <strong>' + drainMode + '</strong> drain. This mutates production.';
+    document.getElementById("confirm-mutation").textContent = option.mutation_preview;
+    document.getElementById("confirm-drain").innerHTML =
+      '<div class="label" style="margin-bottom:6px">Drain plan (' + drainMode + ')</div>' +
+      '<ol style="margin:0; padding-left:18px; color:var(--text-secondary); font-size:var(--fs-label)">' +
+        pool.drain.steps[drainMode].map(s => "<li>" + esc(s) + "</li>").join("") + '</ol>';
+    modal.classList.add("open");
+  }
+  document.getElementById("confirm-cancel").addEventListener("click", () => modal.classList.remove("open"));
+  document.getElementById("confirm-go").addEventListener("click", () => {
+    modal.classList.remove("open");
+    selected = null;
+    render();
+  });
+  modal.addEventListener("click", e => { if (e.target === modal) modal.classList.remove("open"); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") modal.classList.remove("open"); });
+
+  render();
+})();
+</script>
+</body>
+</html>

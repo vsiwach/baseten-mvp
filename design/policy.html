@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Policy — Reliability console</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shell.css">
+</head>
+<body>
+<main class="page" id="main" data-screen-label="Policy">
+
+  <div style="display:flex; align-items:baseline; gap:var(--s-3)">
+    <h1 class="page-title">Control policy</h1>
+    <p class="page-sub">RL-learned probe/reinstate policy — suggests only; promotion is governed</p>
+  </div>
+
+  <section class="split" style="grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr)">
+
+    <div style="display:flex; flex-direction:column; gap:var(--s-4)">
+      <div class="card">
+        <div class="card-head"><h2>Current vs proposed config</h2><span class="hint">7 scalars</span></div>
+        <table class="data" id="config-table" aria-label="Policy configuration comparison">
+          <thead><tr><th>parameter</th><th class="num">current</th><th class="num">proposed</th><th>change</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><h2>Training reward curve</h2><span class="hint">higher is better</span></div>
+        <div class="card-body" id="reward"></div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:var(--s-4)">
+      <div class="card">
+        <div class="card-head"><h2>Held-out evaluation</h2><span class="hint">same incident replay set</span></div>
+        <div class="card-body" id="holdout"></div>
+      </div>
+
+      <div class="card" style="border-color: var(--accent-border)">
+        <div class="card-head"><h2>Governed promote</h2></div>
+        <div class="card-body" style="display:flex; flex-direction:column; gap:var(--s-3)">
+          <p style="margin:0; color:var(--text-secondary)">Promotion replaces the live probe policy for this workload. It is reversible within the cooldown window and requires one approver.</p>
+          <label style="display:flex; gap:8px; align-items:flex-start; font-size:var(--fs-body)">
+            <input type="checkbox" id="ack" style="margin-top:2px">
+            <span>I reviewed the held-out results and the config diff</span>
+          </label>
+          <div style="display:flex; gap:var(--s-2)">
+            <button class="btn-mutate btn" id="promote" disabled>Promote proposed policy <span class="writes">writes</span></button>
+            <button class="btn">View eval details</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Confirm modal -->
+  <div class="modal-backdrop" id="confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+    <div class="modal">
+      <div class="modal-head" id="confirm-title">Confirm policy promotion</div>
+      <div class="modal-body">
+        <p style="margin:0; color:var(--text-secondary)">This writes the following mutation. The previous policy is retained for instant rollback.</p>
+        <pre class="code" id="confirm-mutation"></pre>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" id="confirm-cancel">Cancel</button>
+        <button class="btn-mutate btn" id="confirm-go">Promote <span class="writes">writes</span></button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="mock-data.js"></script>
+<script src="console.js"></script>
+<script>
+(async () => {
+  await renderShell("Policy");
+  const ev = await fetchJSON("/v1/learning/policy-eval");
+
+  const PARAMS = [
+    ["breach_rate_threshold", ""],
+    ["min_samples", ""],
+    ["probe_interval_s", "s"],
+    ["probes_to_reinstate", ""],
+    ["cooldown_s", "s"],
+    ["probe_slo_ms", "ms"],
+    ["escalate_after_failures", ""]
+  ];
+
+  document.querySelector("#config-table tbody").innerHTML = PARAMS.map(([k, unit]) => {
+    const cur = ev.default_config[k], prop = ev.proposed_config[k];
+    const changed = cur !== prop;
+    const delta = changed ? ((prop - cur) / cur * 100) : 0;
+    return '<tr' + (changed ? ' style="background:var(--accent-bg)"' : '') + '>' +
+      '<td class="num" style="color:var(--text-secondary)">' + k + '</td>' +
+      '<td class="num" style="text-align:right">' + cur + unit + '</td>' +
+      '<td class="num" style="text-align:right; font-weight:' + (changed ? "600" : "400") + '">' + prop + unit + '</td>' +
+      '<td>' + (changed
+        ? '<span class="num" style="font-size:var(--fs-label); color:var(--accent-strong)">' + (delta > 0 ? "+" : "") + delta.toFixed(0) + '%</span>'
+        : '<span class="caption">unchanged</span>') + '</td></tr>';
+  }).join("");
+
+  /* Reward curve */
+  document.getElementById("reward").innerHTML =
+    lineChart(ev.reward_curve) +
+    '<div class="caption" style="margin-top:6px; display:flex; justify-content:space-between">' +
+      '<span>iteration 1</span><span class="num">final reward ' + ev.reward_curve[ev.reward_curve.length - 1].toFixed(2) + '</span>' +
+      '<span>iteration ' + ev.reward_curve.length + '</span></div>';
+
+  /* Holdout */
+  const d = ev.holdout.default, p = ev.holdout.proposed;
+  const impr = (p.mttr_p50 - d.mttr_p50) / d.mttr_p50 * 100;
+  const row = (label, dv, pv, betterLow) => {
+    const better = betterLow ? pv < dv : pv > dv;
+    return '<tr><td class="caption">' + label + '</td>' +
+      '<td class="num" style="text-align:right">' + fmt.n(dv) + '</td>' +
+      '<td class="num" style="text-align:right; color:' + (better ? "var(--accent-strong)" : "var(--warn-text)") + '; font-weight:600">' + fmt.n(pv) + '</td></tr>';
+  };
+  document.getElementById("holdout").innerHTML =
+    '<div style="text-align:center; padding: var(--s-2) 0 var(--s-4)">' +
+      '<div class="caption">MTTR p50</div>' +
+      '<div class="num" style="font-size:var(--fs-kpi); font-weight:500; letter-spacing:-0.02em">' +
+        d.mttr_p50.toFixed(1) + 's <span style="color:var(--text-faint)">→</span> <span style="color:var(--accent-strong)">' + p.mttr_p50.toFixed(1) + 's</span></div>' +
+      '<div style="margin-top:4px">' + deltaChip(impr) + '</div>' +
+    '</div>' +
+    '<table class="data" style="font-size:var(--fs-label)"><thead><tr><th></th><th class="num">current</th><th class="num">proposed</th></tr></thead><tbody>' +
+      row("mttr p50 (s)", d.mttr_p50, p.mttr_p50, true) +
+      row("escalations", d.escalations, p.escalations, true) +
+      row("probes issued", d.probes, p.probes, true) +
+    '</tbody></table>' +
+    '<p class="caption" style="margin:var(--s-3) 0 0">Trade-off: ' + Math.round((p.probes / d.probes - 1) * 100) + '% more probes for ' + Math.abs(impr).toFixed(0) + '% lower MTTR.</p>';
+
+  /* Governed promote flow */
+  const ack = document.getElementById("ack");
+  const promote = document.getElementById("promote");
+  const modal = document.getElementById("confirm");
+  ack.addEventListener("change", () => { promote.disabled = !ack.checked; });
+  document.getElementById("confirm-mutation").textContent =
+    "POST /v1/learning/policy/promote\n" + JSON.stringify({ config: ev.proposed_config, approver: "required" }, null, 2);
+  promote.addEventListener("click", () => modal.classList.add("open"));
+  document.getElementById("confirm-cancel").addEventListener("click", () => modal.classList.remove("open"));
+  document.getElementById("confirm-go").addEventListener("click", () => {
+    modal.classList.remove("open");
+    promote.textContent = "Promotion requested — awaiting approver";
+    promote.disabled = true;
+  });
+  modal.addEventListener("click", e => { if (e.target === modal) modal.classList.remove("open"); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") modal.classList.remove("open"); });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+/* ============================================================
+   Reliability Console — design tokens
+   Original light developer-infra aesthetic. Warm stone neutrals,
+   muted spruce green accent. Light mode only.
+   ============================================================ */
+
+:root {
+  /* ---- Neutrals (warm stone) ---- */
+  --bg-page:        oklch(0.977 0.004 85);   /* page background */
+  --bg-surface:     #ffffff;                  /* cards, panels */
+  --bg-inset:       oklch(0.962 0.004 85);   /* wells, code, table headers */
+  --bg-hover:       oklch(0.955 0.005 85);
+
+  --border:         oklch(0.905 0.006 85);   /* hairline borders */
+  --border-strong:  oklch(0.845 0.008 85);
+
+  --text:           oklch(0.245 0.008 70);   /* primary text */
+  --text-secondary: oklch(0.45  0.010 70);
+  --text-muted:     oklch(0.60  0.010 70);   /* labels, captions */
+  --text-faint:     oklch(0.72  0.008 70);
+
+  /* ---- Accent (muted spruce green) ---- */
+  --accent:         oklch(0.56 0.105 158);   /* ≈ #2e8b62 */
+  --accent-strong:  oklch(0.48 0.105 158);
+  --accent-bg:      oklch(0.965 0.020 158);
+  --accent-border:  oklch(0.87  0.055 158);
+
+  /* ---- Semantic status (muted) ---- */
+  --ok:             oklch(0.56 0.105 158);
+  --ok-bg:          oklch(0.965 0.020 158);
+  --ok-border:      oklch(0.87  0.055 158);
+
+  --warn:           oklch(0.62 0.115 75);    /* amber */
+  --warn-bg:        oklch(0.972 0.025 85);
+  --warn-border:    oklch(0.87  0.070 80);
+  --warn-text:      oklch(0.50 0.110 70);
+
+  --bad:            oklch(0.55 0.150 27);    /* muted red */
+  --bad-bg:         oklch(0.968 0.018 25);
+  --bad-border:     oklch(0.87  0.060 25);
+  --bad-text:       oklch(0.47 0.150 27);
+
+  /* ---- Percentile series (restrained hues, shared L/C) ---- */
+  --p50:            oklch(0.58 0.10 245);    /* blue  */
+  --p90:            oklch(0.58 0.10 158);    /* green */
+  --p95:            oklch(0.62 0.10 75);     /* amber */
+  --p99:            oklch(0.56 0.13 27);     /* red   */
+
+  /* ---- Type ---- */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue",
+               Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+               "Liberation Mono", monospace;
+
+  --fs-caption: 11px;
+  --fs-label:   12px;
+  --fs-body:    13px;
+  --fs-md:      14px;
+  --fs-lg:      16px;
+  --fs-kpi:     40px;   /* hero numbers */
+  --fs-kpi-xl:  56px;   /* MTTR — legible from 2 m */
+
+  /* ---- Spacing scale ---- */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+
+  /* ---- Radius / borders ---- */
+  --r-sm: 4px;
+  --r-md: 6px;
+  --r-lg: 8px;
+  --r-pill: 999px;
+
+  /* ---- Elevation (barely-there) ---- */
+  --shadow-sm: 0 1px 2px oklch(0.3 0.01 70 / 0.05);
+  --shadow-md: 0 2px 8px oklch(0.3 0.01 70 / 0.07);
+
+  /* ---- Focus ---- */
+  --focus-ring: 0 0 0 2px var(--bg-surface), 0 0 0 4px var(--accent);
+}

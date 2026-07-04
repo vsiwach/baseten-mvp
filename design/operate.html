@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Operate — Reliability console</title>
+<link rel="stylesheet" href="tokens.css">
+<link rel="stylesheet" href="shell.css">
+</head>
+<body>
+<main class="page" id="main" data-screen-label="Operate">
+
+  <!-- Hero KPIs -->
+  <section aria-label="Hero metrics" class="hero-grid" style="display:grid; grid-template-columns: 1fr 1fr 1.2fr; gap: var(--s-4)">
+    <div class="card" style="padding: var(--s-4)">
+      <div style="display:flex; justify-content:space-between; align-items:baseline">
+        <span class="label">TPOT p99</span>
+        <span id="kpi-tpot-delta"></span>
+      </div>
+      <div style="display:flex; align-items:flex-end; gap: var(--s-4); margin-top: var(--s-2)">
+        <div>
+          <span class="num" id="kpi-tpot" style="font-size:var(--fs-kpi); font-weight:500; letter-spacing:-0.02em; line-height:1"></span>
+          <div class="caption num" id="kpi-tpot-slo" style="margin-top:6px"></div>
+        </div>
+        <div id="spark-tpot" style="margin-left:auto"></div>
+      </div>
+    </div>
+
+    <div class="card" style="padding: var(--s-4)">
+      <div style="display:flex; justify-content:space-between; align-items:baseline">
+        <span class="label">Cost / Mtok</span>
+        <span id="kpi-cost-delta"></span>
+      </div>
+      <div style="display:flex; align-items:flex-end; gap: var(--s-4); margin-top: var(--s-2)">
+        <div>
+          <span class="num" id="kpi-cost" style="font-size:var(--fs-kpi); font-weight:500; letter-spacing:-0.02em; line-height:1"></span>
+          <div class="caption" style="margin-top:6px">blended, trailing 24h</div>
+        </div>
+        <div id="spark-cost" style="margin-left:auto"></div>
+      </div>
+    </div>
+
+    <div class="card" style="padding: var(--s-4); border-color: var(--accent-border); background: linear-gradient(0deg, var(--accent-bg), var(--bg-surface) 55%)">
+      <div style="display:flex; justify-content:space-between; align-items:baseline">
+        <span class="label">MTTR, last incident</span>
+        <span id="kpi-mttr-delta"></span>
+      </div>
+      <div style="display:flex; align-items:flex-end; gap: var(--s-4); margin-top: var(--s-2)">
+        <span class="num" id="kpi-mttr" style="font-size:var(--fs-kpi-xl); font-weight:500; letter-spacing:-0.03em; line-height:1; color:var(--accent-strong)"></span>
+        <div class="caption" style="padding-bottom:6px">detect → resolve,<br>agent-run</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pools + right rail -->
+  <section class="split" style="grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr)">
+
+    <div style="display:flex; flex-direction:column; gap: var(--s-4); min-width:0">
+      <!-- Pools: small multiples -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Pools</h2>
+          <span class="hint">SLO of record per tier, from API</span>
+          <span class="right legend">
+            <span class="k"><span class="sw" style="background:var(--p50)"></span>p50</span>
+            <span class="k"><span class="sw" style="background:var(--p95)"></span>p95</span>
+            <span class="k"><span class="sw" style="background:var(--p99)"></span>p99</span>
+            <span class="k"><span class="sw" style="background:var(--warn); height:8px; width:1px"></span>slo</span>
+          </span>
+        </div>
+        <div id="pools" class="card-body" style="display:flex; flex-direction:column; gap: var(--s-4); padding: var(--s-4)"></div>
+      </div>
+
+      <!-- Incident -->
+      <div class="card" id="incident-card">
+        <div class="card-head">
+          <h2>Last incident</h2>
+          <span class="right" id="incident-meta"></span>
+        </div>
+        <div class="card-body" id="incident-body"></div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap: var(--s-4); min-width:0">
+      <!-- Placement feed -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Placement feed</h2>
+          <span class="hint">live</span>
+          <button class="btn right" id="feed-toggle" style="padding:2px 9px; font-size:var(--fs-caption)" aria-pressed="false">Pause</button>
+        </div>
+        <div class="table-scroll" style="max-height: 296px; overflow-y:hidden">
+          <table class="data" aria-label="Placement decisions">
+            <thead><tr>
+              <th>req</th><th>pool</th><th>reason</th><th class="num">ttft</th><th class="num">decide</th>
+            </tr></thead>
+            <tbody id="feed"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Policy summary -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Control policy</h2>
+          <a class="right" href="policy.html" style="font-size:var(--fs-caption)">Review proposal →</a>
+        </div>
+        <div class="card-body" id="policy-summary" style="padding: var(--s-3) var(--s-4)"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="mock-data.js"></script>
+<script src="console.js"></script>
+<script>
+(async () => {
+  await renderShell("Operate");
+
+  const [hero, slo, pools, feed, incidents, evalr] = await Promise.all([
+    fetchJSON("/v1/metrics/hero"), fetchJSON("/v1/metrics/slo"),
+    fetchJSON("/v1/pools"), fetchJSON("/v1/placement/feed"),
+    fetchJSON("/v1/incidents"), fetchJSON("/v1/learning/policy-eval")
+  ]);
+
+  /* Hero */
+  document.getElementById("kpi-tpot").textContent = fmt.ms(hero.tpot_p99_ms);
+  document.getElementById("kpi-tpot-slo").textContent = "slo " + fmt.ms(hero.tpot_slo_ms);
+  document.getElementById("kpi-tpot-delta").innerHTML = deltaChip(hero.tpot_delta_pct);
+  document.getElementById("spark-tpot").innerHTML = sparkline(hero.spark.tpot, { stroke: "var(--p50)" });
+  document.getElementById("kpi-cost").textContent = fmt.usd(hero.cost_per_mtok_usd);
+  document.getElementById("kpi-cost-delta").innerHTML = deltaChip(hero.cost_delta_pct);
+  document.getElementById("spark-cost").innerHTML = sparkline(hero.spark.cost, { stroke: "var(--text-faint)" });
+  document.getElementById("kpi-mttr").textContent = hero.mttr_s + "s";
+  document.getElementById("kpi-mttr-delta").innerHTML = deltaChip(hero.mttr_delta_pct);
+
+  /* Pools small multiples */
+  const util = Object.fromEntries(pools.pools.map(p => [p.id, p]));
+  document.getElementById("pools").innerHTML = slo.pools.map(p => {
+    const u = util[p.id] || {};
+    return '<article aria-label="' + esc(p.id) + '" style="display:grid; grid-template-columns: 200px 1fr 1fr; gap: var(--s-5); padding-bottom: var(--s-4); border-bottom: 1px solid var(--border)">' +
+      '<div style="display:flex; flex-direction:column; gap:6px">' +
+        '<span class="pill" data-status="' + p.status + '"><span class="dot"></span>' + p.status + '</span>' +
+        '<span class="num" style="font-size:var(--fs-body); font-weight:600">' + esc(p.id) + '</span>' +
+        '<span class="caption">tier <span class="num">' + esc(p.tier) + '</span> · util <span class="num">' + u.util_pct + '%</span> · health <span class="num">' + p.health.toFixed(2) + '</span></span>' +
+        '<span class="caption num">slo: ttft p99 &lt; ' + fmt.ms(p.slo.ttft_p99_ms) + ' · tpot &lt; ' + fmt.ms(p.slo.tpot_p99_ms) + '</span>' +
+      '</div>' +
+      '<div><div class="label" style="margin-bottom:6px">TTFT</div>' + pctlRow(p.ttft, p.slo.ttft_p99_ms) +
+        '<div style="margin-top:8px">' + histogram(p.ttft.hist, { slo: p.slo.ttft_p99_ms }) + '</div></div>' +
+      '<div><div class="label" style="margin-bottom:6px">TPOT</div>' + pctlRow(p.tpot, p.slo.tpot_p99_ms) +
+        '<div style="margin-top:8px">' + histogram(p.tpot.hist, { slo: p.slo.tpot_p99_ms }) + '</div></div>' +
+    '</article>';
+  }).join("").replace(/border-bottom: 1px solid var\(--border\)">(?![\s\S]*border-bottom)/, 'border-bottom: none">');
+
+  /* Incident */
+  const inc = incidents[0];
+  document.getElementById("incident-meta").innerHTML =
+    '<span class="num">' + esc(inc.id) + "</span> · " + esc(inc.agent) + (inc.live ? "" : " · resolved");
+  const totalPhase = inc.phase_ms.detect + inc.phase_ms.diagnose + inc.phase_ms.resolve;
+  const seg = (label, ms, color) =>
+    '<div style="flex:' + ms + '; min-width:56px">' +
+      '<div style="height:8px; border-radius:3px; background:' + color + '"></div>' +
+      '<div class="caption" style="margin-top:4px">' + label + ' <span class="num">' + fmt.ms(ms) + '</span></div></div>';
+  document.getElementById("incident-body").innerHTML =
+    '<div style="display:flex; justify-content:space-between; align-items:baseline; gap:var(--s-3); flex-wrap:wrap">' +
+      '<strong style="font-size:var(--fs-md)">' + esc(inc.title) + '</strong>' +
+      '<span class="num" style="font-size:var(--fs-lg); color:var(--accent-strong); font-weight:600">MTTR ' + inc.mttr_s + 's</span>' +
+    '</div>' +
+    '<div style="display:flex; gap:6px; margin-top:var(--s-3)" role="img" aria-label="Incident phases">' +
+      seg("detect", inc.phase_ms.detect, "var(--p50)") +
+      seg("diagnose", inc.phase_ms.diagnose, "var(--p95)") +
+      seg("resolve", inc.phase_ms.resolve, "var(--accent)") +
+    '</div>' +
+    '<div style="margin-top:var(--s-4)"><div class="label" style="margin-bottom:6px">Agent transcript</div>' +
+      '<pre class="code" style="max-height:170px; overflow:auto">' +
+        inc.actions.map(a => '<span style="color:var(--text-muted)">' + a.t.padStart(7) + '</span>  ' + esc(a.text)).join("\n") +
+      '</pre></div>' +
+    '<div style="margin-top:var(--s-3)"><a href="' + esc(inc.postmortem_url) + '" class="caption">Postmortem →</a></div>';
+
+  /* Policy summary (compact) */
+  const d = evalr.holdout.default, pr = evalr.holdout.proposed;
+  const impr = ((pr.mttr_p50 - d.mttr_p50) / d.mttr_p50 * 100);
+  document.getElementById("policy-summary").innerHTML =
+    '<div style="display:flex; gap:var(--s-5); align-items:baseline">' +
+      '<div><div class="caption">MTTR p50, held-out</div>' +
+        '<div class="num" style="font-size:var(--fs-lg)">' + d.mttr_p50.toFixed(1) + 's → <span style="color:var(--accent-strong); font-weight:600">' + pr.mttr_p50.toFixed(1) + 's</span></div></div>' +
+      '<div>' + deltaChip(impr) + '</div>' +
+    '</div>' +
+    '<div class="caption" style="margin-top:6px">Proposed config awaiting governed promote · ' + fmt.n(pr.probes) + ' probes vs ' + fmt.n(d.probes) + '</div>';
+
+  /* Placement feed — streaming rows */
+  const tbody = document.getElementById("feed");
+  const toggle = document.getElementById("feed-toggle");
+  let paused = false, idx = 0;
+  toggle.addEventListener("click", () => {
+    paused = !paused;
+    toggle.textContent = paused ? "Resume" : "Pause";
+    toggle.setAttribute("aria-pressed", String(paused));
+  });
+  function pushRow() {
+    if (!paused) {
+      const r = feed[idx % feed.length]; idx++;
+      const spill = r.reason.startsWith("spill");
+      const tr = document.createElement("tr");
+      tr.className = "feed-row";
+      tr.innerHTML =
+        '<td class="num" style="color:var(--text-muted)">' + esc(r.req.slice(-6)) + '</td>' +
+        '<td class="num">' + esc(r.pool.replace(/-us-(east|west)$/, "")) + '</td>' +
+        '<td class="caption"' + (spill ? ' style="color:var(--warn-text)"' : '') + '>' + esc(r.reason) + '</td>' +
+        '<td class="num" style="text-align:right">' + fmt.ms(r.ttft_ms) + '</td>' +
+        '<td class="num" style="text-align:right; color:var(--text-muted)">' + r.decide_ms.toFixed(1) + 'ms</td>';
+      tbody.prepend(tr);
+      while (tbody.children.length > 8) tbody.removeChild(tbody.lastChild);
+    }
+    setTimeout(pushRow, 900 + Math.random() * 1400);
+  }
+  // seed 6 rows instantly, then stream
+  for (let i = 0; i < 6; i++) {
+    const r = feed[idx % feed.length]; idx++;
+    const tr = document.createElement("tr");
+    const spill = r.reason.startsWith("spill");
+    tr.innerHTML =
+      '<td class="num" style="color:var(--text-muted)">' + esc(r.req.slice(-6)) + '</td>' +
+      '<td class="num">' + esc(r.pool.replace(/-us-(east|west)$/, "")) + '</td>' +
+      '<td class="caption"' + (spill ? ' style="color:var(--warn-text)"' : '') + '>' + esc(r.reason) + '</td>' +
+      '<td class="num" style="text-align:right">' + fmt.ms(r.ttft_ms) + '</td>' +
+      '<td class="num" style="text-align:right; color:var(--text-muted)">' + r.decide_ms.toFixed(1) + 'ms</td>';
+    tbody.prepend(tr);
+  }
+  setTimeout(pushRow, 1200);
+})();
+</script>
+</body>
+</html>
