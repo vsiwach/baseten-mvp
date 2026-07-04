@@ -1,0 +1,357 @@
+{
+  "content": [
+    {
+      "type": "text",
+      "text": "{\"start_epoch_millis\":1783191332703,\"end_epoch_millis\":1783192532703,\"mode\":\"SERIES\",\"step_seconds\":30,\"metric_descriptors\":[{\"name\":\"baseten_inference_requests_total\",\"unit_hint\":\"COUNT\",\"kind\":\"COUNTER\",\"label_sets\":[{\"status\":\"200\"}]}],\"metric_values\":[{\"start_epoch_millis\":1783191332000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191362000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191392000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191422000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191452000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191482000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191512000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191542000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191572000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191602000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191632000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191662000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191692000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191722000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191752000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191782000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191812000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191842000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191872000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191902000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191932000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191962000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783191992000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192022000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192052000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192082000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192112000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192142000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192172000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192202000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192232000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192262000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192292000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192322000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192352000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192382000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192412000,\"values\":[[2.0]]},{\"start_epoch_millis\":1783192442000,\"values\":[[5.0]]},{\"start_epoch_millis\":1783192472000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192502000,\"values\":[[0.0]]},{\"start_epoch_millis\":1783192532000,\"values\":[[0.0]]}]}"
+    }
+  ],
+  "structuredContent": {
+    "start_epoch_millis": 1783191332703,
+    "end_epoch_millis": 1783192532703,
+    "mode": "SERIES",
+    "step_seconds": 30,
+    "metric_descriptors": [
+      {
+        "name": "baseten_inference_requests_total",
+        "unit_hint": "COUNT",
+        "kind": "COUNTER",
+        "label_sets": [
+          {
+            "status": "200"
+          }
+        ]
+      }
+    ],
+    "metric_values": [
+      {
+        "start_epoch_millis": 1783191332000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191362000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191392000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191422000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191452000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191482000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191512000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191542000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191572000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191602000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191632000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191662000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191692000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191722000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191752000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191782000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191812000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191842000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191872000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191902000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191932000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191962000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783191992000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192022000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192052000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192082000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192112000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192142000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192172000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192202000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192232000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192262000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192292000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192322000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192352000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192382000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192412000,
+        "values": [
+          [
+            2.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192442000,
+        "values": [
+          [
+            5.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192472000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192502000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      },
+      {
+        "start_epoch_millis": 1783192532000,
+        "values": [
+          [
+            0.0
+          ]
+        ]
+      }
+    ]
+  },
+  "isError": false
+}

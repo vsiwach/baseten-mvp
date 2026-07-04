@@ -1,0 +1,6291 @@
+[
+ {
+  "name": "list_library_models",
+  "description": "Returns published library listings \u2014 public listings plus any explicitly shared with the caller's organization.",
+  "inputSchema": {
+   "properties": {},
+   "title": "_NoArgsInput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_library_model",
+  "description": "Gets a library model by listing identity",
+  "inputSchema": {
+   "properties": {
+    "lab_display_name": {
+     "title": "Lab Display Name",
+     "type": "string"
+    },
+    "user_defined_listing_id": {
+     "title": "User Defined Listing Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "lab_display_name",
+    "user_defined_listing_id"
+   ],
+   "title": "MCP_get_library_model_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_model",
+  "description": "Gets a model by ID",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id"
+   ],
+   "title": "MCP_get_model_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_models",
+  "description": "Gets all models",
+  "inputSchema": {
+   "properties": {
+    "team_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Team Id"
+    }
+   },
+   "title": "MCP_list_models_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "delete_model",
+  "description": "Deletes a model by ID",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id"
+   ],
+   "title": "MCP_delete_model_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "deploy_model_from_library",
+  "description": "Creates a new model in the caller's organization. The `source` field selects how the model is constructed (currently: `library_listing` \u2014 fork an accessible listing from `GET /v1/library_models`). The deployment isn't instantly ready \u2014 poll GET endpoint until status is ACTIVE.",
+  "inputSchema": {
+   "$defs": {
+    "CreateModelRequestV1": {
+     "description": "Body for creating a model via `POST /v1/models`.",
+     "properties": {
+      "source": {
+       "description": "Where the new model is created from.",
+       "discriminator": {
+        "mapping": {
+         "library_listing": "#/$defs/LibraryListingSourceV1",
+         "model_archive": "#/$defs/ModelArchiveSourceV1"
+        },
+        "propertyName": "kind"
+       },
+       "oneOf": [
+        {
+         "$ref": "#/$defs/LibraryListingSourceV1"
+        },
+        {
+         "$ref": "#/$defs/ModelArchiveSourceV1"
+        }
+       ],
+       "title": "Source"
+      }
+     },
+     "required": [
+      "source"
+     ],
+     "title": "CreateModelRequestV1",
+     "type": "object"
+    },
+    "DeploymentArchivePayloadV1": {
+     "description": "Deployment-level fields for a model-archive push.\n\nShared by every endpoint that creates a deployment from an uploaded archive:\n`POST /v1/prepare_model_upload`, the `model_archive` source on `POST\n/v1/models`, and `POST /v1/models/{model_id}/deployments`.",
+     "properties": {
+      "config": {
+       "additionalProperties": true,
+       "description": "Parsed model config as a JSON object.",
+       "title": "Config",
+       "type": "object"
+      },
+      "raw_config": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Original config.yaml text, persisted as-is on the deployment. Best-effort: invalid raw configs are logged and dropped without failing the request.",
+       "title": "Raw Config"
+      },
+      "user_env": {
+       "anyOf": [
+        {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Client environment metadata (e.g. client version, Python version). Validated server-side.",
+       "title": "User Env"
+      },
+      "environment_name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Stable environment to push to (e.g. `production`). If unset, the deployment is created without environment selection. Caller must have push permission for the named environment.",
+       "title": "Environment Name"
+      },
+      "preserve_env_instance_type": {
+       "default": true,
+       "description": "Retain the target environment's current instance type rather than the one in `config`. Only meaningful when `environment_name` is set and that environment already exists.",
+       "title": "Preserve Env Instance Type",
+       "type": "boolean"
+      },
+      "deploy_timeout_minutes": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Deploy timeout in minutes; allowed range 10 to 1440. Server default applies if unset.",
+       "title": "Deploy Timeout Minutes"
+      },
+      "deployment_name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional human-readable name for the deployment.",
+       "title": "Deployment Name"
+      },
+      "labels": {
+       "anyOf": [
+        {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "User-provided key-value labels for the deployment.",
+       "title": "Labels"
+      },
+      "is_development": {
+       "default": false,
+       "description": "If true, push as a development deployment: the model's single mutable dev slot, created if absent and overwritten in place otherwise. The following fields must be left at their defaults: `environment_name`, `preserve_env_instance_type`, `deployment_name`.",
+       "title": "Is Development",
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "config"
+     ],
+     "title": "DeploymentArchivePayloadV1",
+     "type": "object"
+    },
+    "LibraryListingSourceV1": {
+     "description": "Create a model by forking a library listing accessible to the caller's organization.",
+     "properties": {
+      "kind": {
+       "const": "library_listing",
+       "default": "library_listing",
+       "title": "Kind",
+       "type": "string"
+      },
+      "lab_display_name": {
+       "description": "Identifier of the publishing organization, as returned by `GET /v1/library_models`.",
+       "title": "Lab Display Name",
+       "type": "string"
+      },
+      "user_defined_listing_id": {
+       "description": "Listing identifier within the publishing organization.",
+       "title": "User Defined Listing Id",
+       "type": "string"
+      },
+      "deployed_model_name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Optional name for the new deployed model. Defaults to the listing's configured name.",
+       "title": "Deployed Model Name"
+      }
+     },
+     "required": [
+      "lab_display_name",
+      "user_defined_listing_id"
+     ],
+     "title": "LibraryListingSourceV1",
+     "type": "object"
+    },
+    "ModelArchiveSourceV1": {
+     "description": "Create a model from an archive previously uploaded via the credentials\nissued by `POST /v1/prepare_model_upload`.",
+     "properties": {
+      "kind": {
+       "const": "model_archive",
+       "default": "model_archive",
+       "title": "Kind",
+       "type": "string"
+      },
+      "name": {
+       "description": "Name of the new model.",
+       "title": "Name",
+       "type": "string"
+      },
+      "deployment": {
+       "$ref": "#/$defs/DeploymentArchivePayloadV1",
+       "description": "Deployment-level configuration for the model's first deployment."
+      },
+      "s3_key": {
+       "description": "S3 key of the uploaded archive, from the credentials returned by `POST /v1/prepare_model_upload`.",
+       "title": "S3 Key",
+       "type": "string"
+      },
+      "disable_archive_download": {
+       "default": false,
+       "description": "If true, the uploaded archive is not downloadable after creation. Locked at model creation; cannot be changed by subsequent deployments.",
+       "title": "Disable Archive Download",
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "name",
+      "deployment",
+      "s3_key"
+     ],
+     "title": "ModelArchiveSourceV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "team_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Team Id"
+    },
+    "create_model_request_v1": {
+     "$ref": "#/$defs/CreateModelRequestV1"
+    }
+   },
+   "required": [
+    "create_model_request_v1"
+   ],
+   "title": "MCP_deploy_model_from_library_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_model_apis",
+  "description": "List Model APIs visible to the caller. By default returns the full catalog; pass `added_only=true` to restrict to Model APIs the workspace has added.",
+  "inputSchema": {
+   "$defs": {
+    "ModelAPIsRequestV1": {
+     "description": "Query-string filters for ``GET /v1/model_apis``.",
+     "properties": {
+      "cursor": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Opaque cursor returned by a previous page. Omit to fetch the first page.",
+       "title": "Cursor"
+      },
+      "limit": {
+       "default": 100,
+       "description": "Maximum number of items to return.",
+       "maximum": 1000,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      },
+      "added_only": {
+       "default": false,
+       "description": "When true, restrict the result to Model APIs the workspace has added. Defaults to the full visible catalog.",
+       "title": "Added Only",
+       "type": "boolean"
+      }
+     },
+     "title": "ModelAPIsRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "model_apis_request_v1": {
+     "$ref": "#/$defs/ModelAPIsRequestV1"
+    }
+   },
+   "title": "MCP_list_model_apis_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_model_api",
+  "description": "Fetch a Model API by name, with workspace overlay when added.",
+  "inputSchema": {
+   "properties": {
+    "model_api_name": {
+     "title": "Model Api Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_api_name"
+   ],
+   "title": "MCP_get_model_api_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_instance_types",
+  "description": "Gets all available instance types",
+  "inputSchema": {
+   "properties": {},
+   "title": "_NoArgsInput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_instance_type_prices",
+  "description": "Gets prices for available instance types.",
+  "inputSchema": {
+   "properties": {},
+   "title": "_NoArgsInput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_deployment",
+  "description": "Gets a model's deployment by ID and returns the deployment.",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "deployment_id": {
+     "title": "Deployment Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id",
+    "deployment_id"
+   ],
+   "title": "MCP_get_deployment_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_deployments_for_model",
+  "description": "Gets all deployments of a model",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id"
+   ],
+   "title": "MCP_list_deployments_for_model_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "delete_deployment",
+  "description": "Deletes a model's deployment by ID and returns the tombstone of the deployment.",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "deployment_id": {
+     "title": "Deployment Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id",
+    "deployment_id"
+   ],
+   "title": "MCP_delete_deployment_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_deployment_download_url",
+  "description": "Gets a presigned URL to download the truss tar file for a deployment.",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "deployment_id": {
+     "title": "Deployment Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id",
+    "deployment_id"
+   ],
+   "title": "MCP_get_deployment_download_url_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_deployment_config",
+  "description": "Returns the deployment's config. `output_format` query param picks the shape: 'raw' (config.yaml text), 'parsed' (dict with defaults), or 'both' (default).",
+  "inputSchema": {
+   "$defs": {
+    "DeploymentConfigOutputFormat": {
+     "enum": [
+      "raw",
+      "parsed",
+      "both"
+     ],
+     "title": "DeploymentConfigOutputFormat",
+     "type": "string"
+    },
+    "GetDeploymentConfigRequestV1__mcp_get_deployment_config": {
+     "properties": {
+      "output_format": {
+       "$ref": "#/$defs/DeploymentConfigOutputFormat",
+       "default": "raw"
+      }
+     },
+     "title": "GetDeploymentConfigRequestV1__mcp_get_deployment_config",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "deployment_id": {
+     "title": "Deployment Id",
+     "type": "string"
+    },
+    "get_deployment_config_request_v1": {
+     "$ref": "#/$defs/GetDeploymentConfigRequestV1__mcp_get_deployment_config"
+    }
+   },
+   "required": [
+    "model_id",
+    "deployment_id"
+   ],
+   "title": "MCP_get_deployment_config_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_deployment_logs",
+  "description": "Gets all the logs for a model deployment in the given time range, which defaults to the last 30 minutes. A failed or older deployment may only have logs from before that window; pass `start_epoch_millis` to widen it back to the build/deploy time.",
+  "inputSchema": {
+   "$defs": {
+    "GetDeploymentLogsRequestV1": {
+     "description": "A request to fetch deployment logs.",
+     "properties": {
+      "start_epoch_millis": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Epoch milliseconds at which to start fetching logs. Defaults to 30 minutes before the end. The window from start to end must not exceed 7 days.",
+       "title": "Start Epoch Millis"
+      },
+      "end_epoch_millis": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Epoch milliseconds at which to stop fetching logs. Defaults to the current time.",
+       "title": "End Epoch Millis"
+      },
+      "direction": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/SortOrderV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Sort order for logs"
+      },
+      "limit": {
+       "anyOf": [
+        {
+         "maximum": 1000,
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": 500,
+       "description": "Limit of logs to fetch in a single request",
+       "title": "Limit"
+      },
+      "min_level": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/LogLevelV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Minimum log severity to include. Omit to return all log lines, including lines that have no level. Any explicit value returns lines at or above that severity and drops lines without a level."
+      },
+      "replica": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Only return logs emitted by this replica (5-char short ID).",
+       "title": "Replica"
+      },
+      "request_id": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Only return logs tagged with this inference request ID.",
+       "title": "Request Id"
+      },
+      "component": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Only return logs from this component.",
+       "title": "Component"
+      },
+      "search_pattern": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "RE2 regular expression matched against the log message. Prefer `includes` and `excludes` for plain substring matches.",
+       "title": "Search Pattern"
+      },
+      "includes": {
+       "description": "Case-sensitive substrings that must all appear in the log message.",
+       "items": {
+        "type": "string"
+       },
+       "maxItems": 8,
+       "title": "Includes",
+       "type": "array"
+      },
+      "excludes": {
+       "description": "Case-sensitive substrings; lines containing any of these are dropped.",
+       "items": {
+        "type": "string"
+       },
+       "maxItems": 8,
+       "title": "Excludes",
+       "type": "array"
+      }
+     },
+     "title": "GetDeploymentLogsRequestV1",
+     "type": "object"
+    },
+    "LogLevelV1": {
+     "description": "A log severity level.",
+     "enum": [
+      "DEBUG",
+      "INFO",
+      "WARNING",
+      "ERROR"
+     ],
+     "title": "LogLevelV1",
+     "type": "string"
+    },
+    "SortOrderV1": {
+     "enum": [
+      "asc",
+      "desc"
+     ],
+     "title": "SortOrderV1",
+     "type": "string"
+    }
+   },
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "deployment_id": {
+     "title": "Deployment Id",
+     "type": "string"
+    },
+    "get_deployment_logs_request_v1": {
+     "$ref": "#/$defs/GetDeploymentLogsRequestV1"
+    }
+   },
+   "required": [
+    "model_id",
+    "deployment_id"
+   ],
+   "title": "MCP_get_deployment_logs_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_deployment_metrics",
+  "description": "Gets the metrics for a model deployment in the given time range.",
+  "inputSchema": {
+   "$defs": {
+    "DeploymentMetricModeV1": {
+     "description": "How metric values are aggregated over the request.",
+     "enum": [
+      "CURRENT",
+      "SUMMARY",
+      "SERIES"
+     ],
+     "title": "DeploymentMetricModeV1",
+     "type": "string"
+    },
+    "GetDeploymentMetricsRequestV1": {
+     "description": "Query params for ``GET /v1/models/.../deployments/.../metrics``.",
+     "properties": {
+      "mode": {
+       "$ref": "#/$defs/DeploymentMetricModeV1",
+       "default": "CURRENT",
+       "description": "'CURRENT': a single instantaneous snapshot at now; start/end must be omitted. 'SUMMARY': a single value set aggregating the whole window. 'SERIES': evenly-spaced value sets across the window, with the step derived from the window duration."
+      },
+      "start_epoch_millis": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Epoch millis timestamp to start fetching metrics. Defaults to one hour before the end.",
+       "title": "Start Epoch Millis"
+      },
+      "end_epoch_millis": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Epoch millis timestamp to end fetching metrics. Defaults to the current time. The window between start and end must not exceed 7 days.",
+       "title": "End Epoch Millis"
+      },
+      "metrics": {
+       "description": "Names of the metrics to return; see https://docs.baseten.co/observability/export-metrics/supported-metrics for the available names. When omitted, a default set is returned: baseten_replicas_active, baseten_inference_requests_total, and baseten_end_to_end_response_time_seconds. Unknown names are rejected; valid names that do not apply to the deployment are omitted from the response.",
+       "items": {
+        "type": "string"
+       },
+       "title": "Metrics",
+       "type": "array"
+      }
+     },
+     "title": "GetDeploymentMetricsRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "deployment_id": {
+     "title": "Deployment Id",
+     "type": "string"
+    },
+    "get_deployment_metrics_request_v1": {
+     "$ref": "#/$defs/GetDeploymentMetricsRequestV1"
+    }
+   },
+   "required": [
+    "model_id",
+    "deployment_id"
+   ],
+   "title": "MCP_get_deployment_metrics_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "create_deployment_patch",
+  "description": "Persists a patch durably without applying it; call the sync endpoint to apply staged patches to the running deployment. The target must be a development deployment (its archive created with `is_development` set to `true`); patching any other deployment is rejected.",
+  "inputSchema": {
+   "$defs": {
+    "CreateDeploymentPatchRequestV1": {
+     "description": "A patch to stage against the development deployment.\n\nStaging is durable on its own: the patch is persisted independently of the\nlater sync, so a failed sync does not lose it.",
+     "properties": {
+      "prev_patch_hash": {
+       "description": "Content hash of the patch point this patch is applied on - the link the staged patch must build on. A stale value (the base moved underneath the client) is rejected with a conflict.",
+       "title": "Prev Patch Hash",
+       "type": "string"
+      },
+      "next_patch_point": {
+       "$ref": "#/$defs/DeploymentPatchPointV1",
+       "description": "The source state after this patch. The server derives its content hash from `content_hashes`."
+      },
+      "patch_ops": {
+       "description": "The ordered ops that make up this patch. At least one op is required; a patch that changes nothing is not a valid request. There is no op for a directory: a directory comes into existence when the first file under it is added, and is removed when its last file is removed, so directory creation and deletion happen implicitly through the file ops. Adding or removing an otherwise empty directory therefore produces no ops even though it changes the source hash; do not send a patch request for such a change.",
+       "items": {
+        "discriminator": {
+         "mapping": {
+          "config": "#/$defs/DeploymentPatchOpConfigV1",
+          "environment_variable": "#/$defs/DeploymentPatchOpEnvVarV1",
+          "external_data": "#/$defs/DeploymentPatchOpExternalDataV1",
+          "model_code": "#/$defs/DeploymentPatchOpModelCodeV1",
+          "package": "#/$defs/DeploymentPatchOpPackageV1",
+          "python_requirement": "#/$defs/DeploymentPatchOpPythonRequirementV1"
+         },
+         "propertyName": "type"
+        },
+        "oneOf": [
+         {
+          "$ref": "#/$defs/DeploymentPatchOpModelCodeV1"
+         },
+         {
+          "$ref": "#/$defs/DeploymentPatchOpPackageV1"
+         },
+         {
+          "$ref": "#/$defs/DeploymentPatchOpConfigV1"
+         },
+         {
+          "$ref": "#/$defs/DeploymentPatchOpPythonRequirementV1"
+         },
+         {
+          "$ref": "#/$defs/DeploymentPatchOpEnvVarV1"
+         },
+         {
+          "$ref": "#/$defs/DeploymentPatchOpExternalDataV1"
+         }
+        ]
+       },
+       "minItems": 1,
+       "title": "Patch Ops",
+       "type": "array"
+      }
+     },
+     "required": [
+      "prev_patch_hash",
+      "next_patch_point",
+      "patch_ops"
+     ],
+     "title": "CreateDeploymentPatchRequestV1",
+     "type": "object"
+    },
+    "DeploymentPatchActionV1": {
+     "description": "How a patch op changes its target.",
+     "enum": [
+      "ADD",
+      "UPDATE",
+      "REMOVE"
+     ],
+     "title": "DeploymentPatchActionV1",
+     "type": "string"
+    },
+    "DeploymentPatchOpConfigV1": {
+     "description": "Replace the config when config.yaml changes.\n\nConfig has no action: it is always a full replacement of the parsed config.\nDerived changes (environment variables, external data, requirements) are\nemitted as their own ops alongside this one.",
+     "properties": {
+      "type": {
+       "const": "config",
+       "default": "config",
+       "title": "Type",
+       "type": "string"
+      },
+      "config": {
+       "additionalProperties": true,
+       "description": "The full parsed config as a JSON object.",
+       "title": "Config",
+       "type": "object"
+      },
+      "path": {
+       "default": "config.yaml",
+       "description": "Config file path within the source.",
+       "title": "Path",
+       "type": "string"
+      }
+     },
+     "required": [
+      "config"
+     ],
+     "title": "DeploymentPatchOpConfigV1",
+     "type": "object"
+    },
+    "DeploymentPatchOpEnvVarV1": {
+     "description": "Add, update, or remove a single environment variable.",
+     "properties": {
+      "type": {
+       "const": "environment_variable",
+       "default": "environment_variable",
+       "title": "Type",
+       "type": "string"
+      },
+      "action": {
+       "$ref": "#/$defs/DeploymentPatchActionV1",
+       "description": "How this op changes the variable."
+      },
+      "name": {
+       "description": "The environment variable name.",
+       "title": "Name",
+       "type": "string"
+      },
+      "value": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "The environment variable value. Required for add and update.",
+       "title": "Value"
+      }
+     },
+     "required": [
+      "action",
+      "name"
+     ],
+     "title": "DeploymentPatchOpEnvVarV1",
+     "type": "object"
+    },
+    "DeploymentPatchOpExternalDataV1": {
+     "description": "Add, update, or remove a single external data item.\n\nExternal data is referenced by config, not stored in the source. The backend\nonly adds or removes it, where adding re-downloads (overwriting any existing\nfile), so `update` is accepted and treated identically to `add`.",
+     "properties": {
+      "type": {
+       "const": "external_data",
+       "default": "external_data",
+       "title": "Type",
+       "type": "string"
+      },
+      "action": {
+       "$ref": "#/$defs/DeploymentPatchActionV1",
+       "description": "How this op changes the item. `UPDATE` is treated identically to `ADD`."
+      },
+      "item": {
+       "additionalProperties": {
+        "type": "string"
+       },
+       "description": "The single external data item descriptor.",
+       "title": "Item",
+       "type": "object"
+      }
+     },
+     "required": [
+      "action",
+      "item"
+     ],
+     "title": "DeploymentPatchOpExternalDataV1",
+     "type": "object"
+    },
+    "DeploymentPatchOpModelCodeV1": {
+     "description": "Add, update, or remove a file under the model code directory.",
+     "properties": {
+      "type": {
+       "const": "model_code",
+       "default": "model_code",
+       "title": "Type",
+       "type": "string"
+      },
+      "action": {
+       "$ref": "#/$defs/DeploymentPatchActionV1",
+       "description": "How this op changes the file."
+      },
+      "path": {
+       "description": "File path relative to the model code directory.",
+       "title": "Path",
+       "type": "string"
+      },
+      "content": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "UTF-8 file content. Null for removals and binary files.",
+       "title": "Content"
+      },
+      "content_bytes": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Base64-encoded content for binary files.",
+       "title": "Content Bytes"
+      },
+      "hot_reload": {
+       "default": false,
+       "description": "Whether the running server can pick up this change without a restart.",
+       "title": "Hot Reload",
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "action",
+      "path"
+     ],
+     "title": "DeploymentPatchOpModelCodeV1",
+     "type": "object"
+    },
+    "DeploymentPatchOpPackageV1": {
+     "description": "Add, update, or remove a file under the bundled packages directory.",
+     "properties": {
+      "type": {
+       "const": "package",
+       "default": "package",
+       "title": "Type",
+       "type": "string"
+      },
+      "action": {
+       "$ref": "#/$defs/DeploymentPatchActionV1",
+       "description": "How this op changes the file."
+      },
+      "path": {
+       "description": "File path relative to the bundled packages directory.",
+       "title": "Path",
+       "type": "string"
+      },
+      "content": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "UTF-8 file content. Null for removals and binary files.",
+       "title": "Content"
+      },
+      "content_bytes": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Base64-encoded content for binary files.",
+       "title": "Content Bytes"
+      }
+     },
+     "required": [
+      "action",
+      "path"
+     ],
+     "title": "DeploymentPatchOpPackageV1",
+     "type": "object"
+    },
+    "DeploymentPatchOpPythonRequirementV1": {
+     "description": "Add, update, or remove a single Python requirement.",
+     "properties": {
+      "type": {
+       "const": "python_requirement",
+       "default": "python_requirement",
+       "title": "Type",
+       "type": "string"
+      },
+      "action": {
+       "$ref": "#/$defs/DeploymentPatchActionV1",
+       "description": "How this op changes the requirement."
+      },
+      "requirement": {
+       "description": "The requirement to apply. For removals this is the package name; otherwise the full requirements.txt-style line.",
+       "title": "Requirement",
+       "type": "string"
+      }
+     },
+     "required": [
+      "action",
+      "requirement"
+     ],
+     "title": "DeploymentPatchOpPythonRequirementV1",
+     "type": "object"
+    },
+    "DeploymentPatchPointV1": {
+     "description": "A patch point: the source state the next patch is computed against.\n\nThe content hash that identifies a point is derived from this state (see\n`DeploymentPatchPointWithHashV1.hash`), so a request only sends the state and\nthe server stamps the hash. A previous point's hash plus the current local\nsource is enough to compute the next patch, so the watch client reads the\npoint it is patching off of.",
+     "properties": {
+      "content_hashes": {
+       "additionalProperties": {
+        "anyOf": [
+         {
+          "type": "string"
+         },
+         {
+          "type": "null"
+         }
+        ]
+       },
+       "description": "Map of every non-ignored source path, relative and forward-slash, to its content hash: files map to the hex blake3 digest of their bytes, directories map to null. This is the full signature of the source tree and what the content hash is derived from.",
+       "title": "Content Hashes",
+       "type": "object"
+      },
+      "config": {
+       "description": "The verbatim config.yaml text for this source state.",
+       "title": "Config",
+       "type": "string"
+      },
+      "requirements": {
+       "description": "Requirements resolved from the config's requirements file, when it points at one. Empty when requirements are declared inline in the config.",
+       "items": {
+        "type": "string"
+       },
+       "title": "Requirements",
+       "type": "array"
+      }
+     },
+     "required": [
+      "content_hashes",
+      "config"
+     ],
+     "title": "DeploymentPatchPointV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "deployment_id": {
+     "title": "Deployment Id",
+     "type": "string"
+    },
+    "create_deployment_patch_request_v1": {
+     "$ref": "#/$defs/CreateDeploymentPatchRequestV1"
+    }
+   },
+   "required": [
+    "model_id",
+    "deployment_id",
+    "create_deployment_patch_request_v1"
+   ],
+   "title": "MCP_create_deployment_patch_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_deployment_patches_state",
+  "description": "Returns the patch point the deployment is recorded as running and the latest staged-but-unsynced point, if any. The watch client computes its next patch off the pending point when present, else the running point.",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "deployment_id": {
+     "title": "Deployment Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id",
+    "deployment_id"
+   ],
+   "title": "MCP_get_deployment_patches_state_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "sync_deployment_patches",
+  "description": "Applies any staged patches to the running deployment. A 2xx response means the sync reached a verdict: in sync, or a full push is required (needs_full_deploy_reason). A 503 means the sync was not attempted or failed recoverably and should be retried; any other error is terminal.",
+  "inputSchema": {
+   "$defs": {
+    "SyncDeploymentPatchesRequestV1": {
+     "description": "Triggers a sync of any staged patches to the running deployment. Takes no\nfields: the deployment and its staged patches fully determine the sync.",
+     "properties": {},
+     "title": "SyncDeploymentPatchesRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "deployment_id": {
+     "title": "Deployment Id",
+     "type": "string"
+    },
+    "sync_deployment_patches_request_v1": {
+     "$ref": "#/$defs/SyncDeploymentPatchesRequestV1"
+    }
+   },
+   "required": [
+    "model_id",
+    "deployment_id"
+   ],
+   "title": "MCP_sync_deployment_patches_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_chain",
+  "description": "Gets a chain by ID",
+  "inputSchema": {
+   "properties": {
+    "chain_id": {
+     "title": "Chain Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "chain_id"
+   ],
+   "title": "MCP_get_chain_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_chains",
+  "description": "Gets all chains",
+  "inputSchema": {
+   "properties": {},
+   "title": "_NoArgsInput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "delete_chain",
+  "description": "Deletes a chain by ID",
+  "inputSchema": {
+   "properties": {
+    "chain_id": {
+     "title": "Chain Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "chain_id"
+   ],
+   "title": "MCP_delete_chain_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_chain_deployment",
+  "description": "Gets a chain deployment by ID",
+  "inputSchema": {
+   "properties": {
+    "chain_id": {
+     "title": "Chain Id",
+     "type": "string"
+    },
+    "chain_deployment_id": {
+     "title": "Chain Deployment Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "chain_id",
+    "chain_deployment_id"
+   ],
+   "title": "MCP_get_chain_deployment_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_chain_deployments_for_chain",
+  "description": "Gets all chain deployments",
+  "inputSchema": {
+   "properties": {
+    "chain_id": {
+     "title": "Chain Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "chain_id"
+   ],
+   "title": "MCP_list_chain_deployments_for_chain_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "delete_chain_deployment",
+  "description": "Deletes a chain deployment by ID",
+  "inputSchema": {
+   "properties": {
+    "chain_id": {
+     "title": "Chain Id",
+     "type": "string"
+    },
+    "chain_deployment_id": {
+     "title": "Chain Deployment Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "chain_id",
+    "chain_deployment_id"
+   ],
+   "title": "MCP_delete_chain_deployment_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "deactivate_chain_deployment",
+  "description": "Deactivates a chain deployment and returns the deactivation status.",
+  "inputSchema": {
+   "properties": {
+    "chain_id": {
+     "title": "Chain Id",
+     "type": "string"
+    },
+    "chain_deployment_id": {
+     "title": "Chain Deployment Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "chain_id",
+    "chain_deployment_id"
+   ],
+   "title": "MCP_deactivate_chain_deployment_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_chainlet_logs",
+  "description": "Resolves the chainlet (by ID, scoped to the given chain deployment) to its underlying model deployment and returns its logs in the given time range.",
+  "inputSchema": {
+   "$defs": {
+    "GetDeploymentLogsRequestV1": {
+     "description": "A request to fetch deployment logs.",
+     "properties": {
+      "start_epoch_millis": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Epoch milliseconds at which to start fetching logs. Defaults to 30 minutes before the end. The window from start to end must not exceed 7 days.",
+       "title": "Start Epoch Millis"
+      },
+      "end_epoch_millis": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Epoch milliseconds at which to stop fetching logs. Defaults to the current time.",
+       "title": "End Epoch Millis"
+      },
+      "direction": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/SortOrderV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Sort order for logs"
+      },
+      "limit": {
+       "anyOf": [
+        {
+         "maximum": 1000,
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": 500,
+       "description": "Limit of logs to fetch in a single request",
+       "title": "Limit"
+      },
+      "min_level": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/LogLevelV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Minimum log severity to include. Omit to return all log lines, including lines that have no level. Any explicit value returns lines at or above that severity and drops lines without a level."
+      },
+      "replica": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Only return logs emitted by this replica (5-char short ID).",
+       "title": "Replica"
+      },
+      "request_id": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Only return logs tagged with this inference request ID.",
+       "title": "Request Id"
+      },
+      "component": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Only return logs from this component.",
+       "title": "Component"
+      },
+      "search_pattern": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "RE2 regular expression matched against the log message. Prefer `includes` and `excludes` for plain substring matches.",
+       "title": "Search Pattern"
+      },
+      "includes": {
+       "description": "Case-sensitive substrings that must all appear in the log message.",
+       "items": {
+        "type": "string"
+       },
+       "maxItems": 8,
+       "title": "Includes",
+       "type": "array"
+      },
+      "excludes": {
+       "description": "Case-sensitive substrings; lines containing any of these are dropped.",
+       "items": {
+        "type": "string"
+       },
+       "maxItems": 8,
+       "title": "Excludes",
+       "type": "array"
+      }
+     },
+     "title": "GetDeploymentLogsRequestV1",
+     "type": "object"
+    },
+    "LogLevelV1": {
+     "description": "A log severity level.",
+     "enum": [
+      "DEBUG",
+      "INFO",
+      "WARNING",
+      "ERROR"
+     ],
+     "title": "LogLevelV1",
+     "type": "string"
+    },
+    "SortOrderV1": {
+     "enum": [
+      "asc",
+      "desc"
+     ],
+     "title": "SortOrderV1",
+     "type": "string"
+    }
+   },
+   "properties": {
+    "chain_id": {
+     "title": "Chain Id",
+     "type": "string"
+    },
+    "chain_deployment_id": {
+     "title": "Chain Deployment Id",
+     "type": "string"
+    },
+    "chainlet_id": {
+     "title": "Chainlet Id",
+     "type": "string"
+    },
+    "get_deployment_logs_request_v1": {
+     "$ref": "#/$defs/GetDeploymentLogsRequestV1"
+    }
+   },
+   "required": [
+    "chain_id",
+    "chain_deployment_id",
+    "chainlet_id"
+   ],
+   "title": "MCP_get_chainlet_logs_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_environment",
+  "description": "Gets an environment's details and returns the environment.",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id",
+    "env_name"
+   ],
+   "title": "MCP_get_environment_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_environments_for_model",
+  "description": "Gets all environments for a given model",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id"
+   ],
+   "title": "MCP_list_environments_for_model_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_environment_logs",
+  "description": "Gets logs across all deployments that were active on the environment in the given time range, which defaults to the last 30 minutes. Pass `start_epoch_millis` to widen the window back to an earlier deployment's build/deploy time.",
+  "inputSchema": {
+   "$defs": {
+    "GetEnvironmentLogsRequestV1": {
+     "description": "A request to fetch logs for a model environment.\n\nReturns logs from every deployment that was active on the environment over\nthe requested time range, merged in timestamp order.",
+     "properties": {
+      "start_epoch_millis": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Epoch milliseconds at which to start fetching logs. Defaults to 30 minutes before the end. The window from start to end must not exceed 7 days.",
+       "title": "Start Epoch Millis"
+      },
+      "end_epoch_millis": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Epoch milliseconds at which to stop fetching logs. Defaults to the current time.",
+       "title": "End Epoch Millis"
+      },
+      "direction": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/SortOrderV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Sort order for logs"
+      },
+      "limit": {
+       "anyOf": [
+        {
+         "maximum": 1000,
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": 500,
+       "description": "Limit of logs to fetch in a single request",
+       "title": "Limit"
+      },
+      "min_level": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/LogLevelV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Minimum log severity to include. Omit to return all log lines, including lines that have no level. Any explicit value returns lines at or above that severity and drops lines without a level."
+      },
+      "replica": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Only return logs emitted by this replica (5-char short ID).",
+       "title": "Replica"
+      },
+      "request_id": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Only return logs tagged with this inference request ID.",
+       "title": "Request Id"
+      },
+      "component": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Only return logs from this component.",
+       "title": "Component"
+      },
+      "search_pattern": {
+       "anyOf": [
+        {
+         "maxLength": 256,
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "RE2 regular expression matched against the log message. Prefer `includes` and `excludes` for plain substring matches.",
+       "title": "Search Pattern"
+      },
+      "includes": {
+       "description": "Case-sensitive substrings that must all appear in the log message.",
+       "items": {
+        "type": "string"
+       },
+       "maxItems": 8,
+       "title": "Includes",
+       "type": "array"
+      },
+      "excludes": {
+       "description": "Case-sensitive substrings; lines containing any of these are dropped.",
+       "items": {
+        "type": "string"
+       },
+       "maxItems": 8,
+       "title": "Excludes",
+       "type": "array"
+      }
+     },
+     "title": "GetEnvironmentLogsRequestV1",
+     "type": "object"
+    },
+    "LogLevelV1": {
+     "description": "A log severity level.",
+     "enum": [
+      "DEBUG",
+      "INFO",
+      "WARNING",
+      "ERROR"
+     ],
+     "title": "LogLevelV1",
+     "type": "string"
+    },
+    "SortOrderV1": {
+     "enum": [
+      "asc",
+      "desc"
+     ],
+     "title": "SortOrderV1",
+     "type": "string"
+    }
+   },
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    },
+    "get_environment_logs_request_v1": {
+     "$ref": "#/$defs/GetEnvironmentLogsRequestV1"
+    }
+   },
+   "required": [
+    "model_id",
+    "env_name"
+   ],
+   "title": "MCP_get_environment_logs_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "update_environment",
+  "description": "Asynchronously updates an environment's settings. Poll the GET endpoint for the applied state.",
+  "inputSchema": {
+   "$defs": {
+    "PromotionCleanupStrategyV1": {
+     "description": "The promotion cleanup strategy.",
+     "enum": [
+      "KEEP",
+      "SCALE_TO_ZERO",
+      "DEACTIVATE"
+     ],
+     "title": "PromotionCleanupStrategyV1",
+     "type": "string"
+    },
+    "RollingDeployStrategyV1": {
+     "description": "The rolling deploy strategy.",
+     "enum": [
+      "REPLICA"
+     ],
+     "title": "RollingDeployStrategyV1",
+     "type": "string"
+    },
+    "UpdateAutoscalingSettingsV1": {
+     "additionalProperties": false,
+     "description": "A request to update autoscaling settings for a deployment. All fields are optional, and we only update ones passed in.",
+     "properties": {
+      "min_replica": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Minimum number of replicas",
+       "examples": [
+        0
+       ],
+       "title": "Min Replica"
+      },
+      "max_replica": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Maximum number of replicas",
+       "examples": [
+        7
+       ],
+       "title": "Max Replica"
+      },
+      "autoscaling_window": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Timeframe of traffic considered for autoscaling decisions",
+       "examples": [
+        600
+       ],
+       "title": "Autoscaling Window"
+      },
+      "scale_down_delay": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Waiting period before scaling down any active replica",
+       "examples": [
+        120
+       ],
+       "title": "Scale Down Delay"
+      },
+      "concurrency_target": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Number of requests per replica before scaling up",
+       "examples": [
+        2
+       ],
+       "title": "Concurrency Target"
+      },
+      "target_utilization_percentage": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Target utilization percentage for scaling up/down.",
+       "examples": [
+        70
+       ],
+       "title": "Target Utilization Percentage"
+      },
+      "target_in_flight_tokens": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Target number of in-flight tokens for autoscaling decisions. Early access only.",
+       "examples": [
+        40000
+       ],
+       "title": "Target In Flight Tokens"
+      },
+      "max_scale_down_rate": {
+       "anyOf": [
+        {
+         "maximum": 50,
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Maximum percentage of replicas that can be removed per autoscaling window (1\u201350). E.g. 20 means at most 20% of replicas are removed per window.",
+       "examples": [
+        20
+       ],
+       "title": "Max Scale Down Rate"
+      }
+     },
+     "title": "UpdateAutoscalingSettingsV1",
+     "type": "object"
+    },
+    "UpdateEnvironmentRequestV1": {
+     "additionalProperties": false,
+     "description": "A request to update an environment.",
+     "properties": {
+      "autoscaling_settings": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/UpdateAutoscalingSettingsV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Autoscaling settings for the environment",
+       "examples": [
+        {
+         "autoscaling_window": 800,
+         "concurrency_target": 3,
+         "max_replica": 2,
+         "max_scale_down_rate": null,
+         "min_replica": 1,
+         "scale_down_delay": 60,
+         "target_in_flight_tokens": null,
+         "target_utilization_percentage": null
+        }
+       ]
+      },
+      "promotion_settings": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/UpdatePromotionSettingsV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Promotion settings for the environment",
+       "examples": [
+        {
+         "promotion_cleanup_strategy": null,
+         "ramp_up_duration_seconds": 600,
+         "ramp_up_while_promoting": true,
+         "redeploy_on_promotion": true,
+         "rolling_deploy": null,
+         "rolling_deploy_config": null
+        }
+       ]
+      }
+     },
+     "title": "UpdateEnvironmentRequestV1",
+     "type": "object"
+    },
+    "UpdatePromotionSettingsV1": {
+     "description": "Promotion settings for model promotion",
+     "properties": {
+      "redeploy_on_promotion": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Whether to deploy on all promotions. Enabling this flag allows model code to safely handle environment-specific logic. When a deployment is promoted, a new deployment will be created with a copy of the image.",
+       "examples": [
+        true
+       ],
+       "title": "Redeploy On Promotion"
+      },
+      "rolling_deploy": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Whether the environment should rely on rolling deploy orchestration.",
+       "examples": [
+        true
+       ],
+       "title": "Rolling Deploy"
+      },
+      "promotion_cleanup_strategy": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/PromotionCleanupStrategyV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "The cleanup strategy to use after a promotion completes.",
+       "examples": [
+        "SCALE_TO_ZERO"
+       ]
+      },
+      "rolling_deploy_config": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/UpdateRollingDeployConfigV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Rolling deploy configuration for promotions"
+      },
+      "ramp_up_while_promoting": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Whether to ramp up traffic while promoting",
+       "examples": [
+        true
+       ],
+       "title": "Ramp Up While Promoting"
+      },
+      "ramp_up_duration_seconds": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Duration of the ramp up in seconds",
+       "examples": [
+        600
+       ],
+       "title": "Ramp Up Duration Seconds"
+      }
+     },
+     "title": "UpdatePromotionSettingsV1",
+     "type": "object"
+    },
+    "UpdateRollingDeployConfigV1": {
+     "description": "Rolling deploy config for promoting chains and oracles",
+     "properties": {
+      "rolling_deploy_strategy": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/RollingDeployStrategyV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "The rolling deploy strategy to use for promotions.",
+       "examples": [
+        "REPLICA"
+       ]
+      },
+      "max_surge_percent": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": 10,
+       "description": "The maximum surge percentage for rolling deploys.",
+       "examples": [
+        10
+       ],
+       "title": "Max Surge Percent"
+      },
+      "max_unavailable_percent": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "The maximum unavailable percentage for rolling deploys.",
+       "examples": [
+        10
+       ],
+       "title": "Max Unavailable Percent"
+      },
+      "stabilization_time_seconds": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "The stabilization time in seconds for rolling deploys.",
+       "examples": [
+        300
+       ],
+       "title": "Stabilization Time Seconds"
+      },
+      "replica_overhead_percent": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "The replica overhead percentage for rolling deploys.",
+       "examples": [
+        0
+       ],
+       "title": "Replica Overhead Percent"
+      }
+     },
+     "title": "UpdateRollingDeployConfigV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    },
+    "update_environment_request_v1": {
+     "$ref": "#/$defs/UpdateEnvironmentRequestV1"
+    }
+   },
+   "required": [
+    "model_id",
+    "env_name"
+   ],
+   "title": "MCP_update_environment_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "activate_environment",
+  "description": "Activates an inactive deployment associated with an environment and returns the activation status.",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id",
+    "env_name"
+   ],
+   "title": "MCP_activate_environment_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "deactivate_environment",
+  "description": "Deactivates a deployment associated with an environment and returns the deactivation status.",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id",
+    "env_name"
+   ],
+   "title": "MCP_deactivate_environment_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "promote_to_environment",
+  "description": "Promotes an existing deployment to an environment and returns the promoted deployment.",
+  "inputSchema": {
+   "$defs": {
+    "PromoteToEnvironmentRequestV1": {
+     "description": "A request to promote a deployment to a environment.",
+     "properties": {
+      "scale_down_previous_deployment": {
+       "default": true,
+       "description": "Whether to scale down the previous deployment after promoting",
+       "examples": [
+        true
+       ],
+       "title": "Scale Down Previous Deployment",
+       "type": "boolean"
+      },
+      "deployment_id": {
+       "description": "The id of the deployment to promote",
+       "title": "Deployment Id",
+       "type": "string"
+      },
+      "preserve_env_instance_type": {
+       "default": true,
+       "description": "Whether to use the promoting deployment's instance type or preserve target environment's instance type",
+       "examples": [
+        true
+       ],
+       "title": "Preserve Env Instance Type",
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "deployment_id"
+     ],
+     "title": "PromoteToEnvironmentRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    },
+    "promote_to_environment_request_v1": {
+     "$ref": "#/$defs/PromoteToEnvironmentRequestV1"
+    }
+   },
+   "required": [
+    "model_id",
+    "env_name",
+    "promote_to_environment_request_v1"
+   ],
+   "title": "MCP_promote_to_environment_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "cancel_promotion",
+  "description": "Cancels an ongoing promotion to an environment and returns the cancellation status.",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id",
+    "env_name"
+   ],
+   "title": "MCP_cancel_promotion_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "pause_promotion",
+  "description": "Pauses an in-progress rolling promotion after the current step completes. No further scaling changes are made until resumed.",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id",
+    "env_name"
+   ],
+   "title": "MCP_pause_promotion_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "resume_promotion",
+  "description": "Resumes a paused rolling promotion, continuing from where it was paused.",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id",
+    "env_name"
+   ],
+   "title": "MCP_resume_promotion_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "force_cancel_promotion",
+  "description": "Immediately cancels an in-progress rolling promotion and triggers rollback to the previous version.",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id",
+    "env_name"
+   ],
+   "title": "MCP_force_cancel_promotion_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "force_roll_forward_promotion",
+  "description": "Immediately completes the rolling promotion, shifting all traffic to the new version. This works even if the promotion is in the process of rolling back.",
+  "inputSchema": {
+   "properties": {
+    "model_id": {
+     "title": "Model Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "model_id",
+    "env_name"
+   ],
+   "title": "MCP_force_roll_forward_promotion_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_chain_environment",
+  "description": "Gets a chain environment's details and returns the chain environment.",
+  "inputSchema": {
+   "properties": {
+    "chain_id": {
+     "title": "Chain Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    }
+   },
+   "required": [
+    "chain_id",
+    "env_name"
+   ],
+   "title": "MCP_get_chain_environment_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_chain_environments_for_chain",
+  "description": "Gets all chain environments for a given chain",
+  "inputSchema": {
+   "properties": {
+    "chain_id": {
+     "title": "Chain Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "chain_id"
+   ],
+   "title": "MCP_list_chain_environments_for_chain_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "update_chain_environment",
+  "description": "Update a chain environment's settings and returns the chain environment.",
+  "inputSchema": {
+   "$defs": {
+    "PromotionCleanupStrategyV1": {
+     "description": "The promotion cleanup strategy.",
+     "enum": [
+      "KEEP",
+      "SCALE_TO_ZERO",
+      "DEACTIVATE"
+     ],
+     "title": "PromotionCleanupStrategyV1",
+     "type": "string"
+    },
+    "RollingDeployStrategyV1": {
+     "description": "The rolling deploy strategy.",
+     "enum": [
+      "REPLICA"
+     ],
+     "title": "RollingDeployStrategyV1",
+     "type": "string"
+    },
+    "UpdateChainEnvironmentRequestV1": {
+     "description": "A request to update a chain environment.",
+     "properties": {
+      "promotion_settings": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/UpdatePromotionSettingsV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Promotion settings for the environment",
+       "examples": [
+        {
+         "promotion_cleanup_strategy": null,
+         "ramp_up_duration_seconds": 600,
+         "ramp_up_while_promoting": true,
+         "redeploy_on_promotion": null,
+         "rolling_deploy": null,
+         "rolling_deploy_config": null
+        }
+       ]
+      }
+     },
+     "title": "UpdateChainEnvironmentRequestV1",
+     "type": "object"
+    },
+    "UpdatePromotionSettingsV1": {
+     "description": "Promotion settings for model promotion",
+     "properties": {
+      "redeploy_on_promotion": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Whether to deploy on all promotions. Enabling this flag allows model code to safely handle environment-specific logic. When a deployment is promoted, a new deployment will be created with a copy of the image.",
+       "examples": [
+        true
+       ],
+       "title": "Redeploy On Promotion"
+      },
+      "rolling_deploy": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Whether the environment should rely on rolling deploy orchestration.",
+       "examples": [
+        true
+       ],
+       "title": "Rolling Deploy"
+      },
+      "promotion_cleanup_strategy": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/PromotionCleanupStrategyV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "The cleanup strategy to use after a promotion completes.",
+       "examples": [
+        "SCALE_TO_ZERO"
+       ]
+      },
+      "rolling_deploy_config": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/UpdateRollingDeployConfigV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Rolling deploy configuration for promotions"
+      },
+      "ramp_up_while_promoting": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Whether to ramp up traffic while promoting",
+       "examples": [
+        true
+       ],
+       "title": "Ramp Up While Promoting"
+      },
+      "ramp_up_duration_seconds": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Duration of the ramp up in seconds",
+       "examples": [
+        600
+       ],
+       "title": "Ramp Up Duration Seconds"
+      }
+     },
+     "title": "UpdatePromotionSettingsV1",
+     "type": "object"
+    },
+    "UpdateRollingDeployConfigV1": {
+     "description": "Rolling deploy config for promoting chains and oracles",
+     "properties": {
+      "rolling_deploy_strategy": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/RollingDeployStrategyV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "The rolling deploy strategy to use for promotions.",
+       "examples": [
+        "REPLICA"
+       ]
+      },
+      "max_surge_percent": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": 10,
+       "description": "The maximum surge percentage for rolling deploys.",
+       "examples": [
+        10
+       ],
+       "title": "Max Surge Percent"
+      },
+      "max_unavailable_percent": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "The maximum unavailable percentage for rolling deploys.",
+       "examples": [
+        10
+       ],
+       "title": "Max Unavailable Percent"
+      },
+      "stabilization_time_seconds": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "The stabilization time in seconds for rolling deploys.",
+       "examples": [
+        300
+       ],
+       "title": "Stabilization Time Seconds"
+      },
+      "replica_overhead_percent": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "The replica overhead percentage for rolling deploys.",
+       "examples": [
+        0
+       ],
+       "title": "Replica Overhead Percent"
+      }
+     },
+     "title": "UpdateRollingDeployConfigV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "chain_id": {
+     "title": "Chain Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    },
+    "update_chain_environment_request_v1": {
+     "$ref": "#/$defs/UpdateChainEnvironmentRequestV1"
+    }
+   },
+   "required": [
+    "chain_id",
+    "env_name"
+   ],
+   "title": "MCP_update_chain_environment_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "promote_to_chain_environment",
+  "description": "Promotes an existing chain deployment to an environment and returns the promoted chain deployment.",
+  "inputSchema": {
+   "$defs": {
+    "PromoteToChainEnvironmentRequestV1": {
+     "description": "A request to promote a deployment to a environment.",
+     "properties": {
+      "scale_down_previous_deployment": {
+       "default": true,
+       "description": "Whether to scale down the previous deployment after promoting",
+       "examples": [
+        true
+       ],
+       "title": "Scale Down Previous Deployment",
+       "type": "boolean"
+      },
+      "deployment_id": {
+       "description": "The id of the chain deployment to promote",
+       "title": "Deployment Id",
+       "type": "string"
+      }
+     },
+     "required": [
+      "deployment_id"
+     ],
+     "title": "PromoteToChainEnvironmentRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "chain_id": {
+     "title": "Chain Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    },
+    "promote_to_chain_environment_request_v1": {
+     "$ref": "#/$defs/PromoteToChainEnvironmentRequestV1"
+    }
+   },
+   "required": [
+    "chain_id",
+    "env_name",
+    "promote_to_chain_environment_request_v1"
+   ],
+   "title": "MCP_promote_to_chain_environment_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "update_chainlet_environment_autoscaling_settings",
+  "description": "Updates a chainlet environment's autoscaling settings and returns the updated chainlet environment settings.",
+  "inputSchema": {
+   "$defs": {
+    "ChainletEnvironmentAutoscalingSettingsUpdateV1": {
+     "description": "The request to update the autoscaling settings for a chainlet.",
+     "properties": {
+      "chainlet_name": {
+       "description": "Name of the chainlet",
+       "examples": [
+        "HelloWorld"
+       ],
+       "title": "Chainlet Name",
+       "type": "string"
+      },
+      "autoscaling_settings": {
+       "$ref": "#/$defs/UpdateAutoscalingSettingsV1",
+       "description": "Autoscaling settings for the chainlet",
+       "examples": [
+        {
+         "autoscaling_window": 800,
+         "concurrency_target": 3,
+         "max_replica": 2,
+         "max_scale_down_rate": null,
+         "min_replica": 1,
+         "scale_down_delay": 60,
+         "target_in_flight_tokens": null,
+         "target_utilization_percentage": null
+        }
+       ]
+      }
+     },
+     "required": [
+      "chainlet_name",
+      "autoscaling_settings"
+     ],
+     "title": "ChainletEnvironmentAutoscalingSettingsUpdateV1",
+     "type": "object"
+    },
+    "UpdateAutoscalingSettingsV1": {
+     "additionalProperties": false,
+     "description": "A request to update autoscaling settings for a deployment. All fields are optional, and we only update ones passed in.",
+     "properties": {
+      "min_replica": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Minimum number of replicas",
+       "examples": [
+        0
+       ],
+       "title": "Min Replica"
+      },
+      "max_replica": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Maximum number of replicas",
+       "examples": [
+        7
+       ],
+       "title": "Max Replica"
+      },
+      "autoscaling_window": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Timeframe of traffic considered for autoscaling decisions",
+       "examples": [
+        600
+       ],
+       "title": "Autoscaling Window"
+      },
+      "scale_down_delay": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Waiting period before scaling down any active replica",
+       "examples": [
+        120
+       ],
+       "title": "Scale Down Delay"
+      },
+      "concurrency_target": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Number of requests per replica before scaling up",
+       "examples": [
+        2
+       ],
+       "title": "Concurrency Target"
+      },
+      "target_utilization_percentage": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Target utilization percentage for scaling up/down.",
+       "examples": [
+        70
+       ],
+       "title": "Target Utilization Percentage"
+      },
+      "target_in_flight_tokens": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Target number of in-flight tokens for autoscaling decisions. Early access only.",
+       "examples": [
+        40000
+       ],
+       "title": "Target In Flight Tokens"
+      },
+      "max_scale_down_rate": {
+       "anyOf": [
+        {
+         "maximum": 50,
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Maximum percentage of replicas that can be removed per autoscaling window (1\u201350). E.g. 20 means at most 20% of replicas are removed per window.",
+       "examples": [
+        20
+       ],
+       "title": "Max Scale Down Rate"
+      }
+     },
+     "title": "UpdateAutoscalingSettingsV1",
+     "type": "object"
+    },
+    "UpdateChainletEnvironmentAutoscalingSettingsRequestV1": {
+     "description": "A request to update the autoscaling settings for a multiple chainlets in an environment.\nIf a chainlet name doesn't exist, an error is returned.",
+     "properties": {
+      "updates": {
+       "description": "Mapping of chainlet name to the desired chainlet autoscaling settings. If the chainlet name doesn't exist, an error is returned.",
+       "examples": [
+        [
+         {
+          "autoscaling_settings": {
+           "autoscaling_window": 800,
+           "concurrency_target": 4,
+           "max_replica": 3,
+           "max_scale_down_rate": null,
+           "min_replica": 2,
+           "scale_down_delay": 63,
+           "target_in_flight_tokens": null,
+           "target_utilization_percentage": null
+          },
+          "chainlet_name": "HelloWorld"
+         }
+        ],
+        [
+         {
+          "autoscaling_settings": {
+           "autoscaling_window": null,
+           "concurrency_target": null,
+           "max_replica": null,
+           "max_scale_down_rate": null,
+           "min_replica": 0,
+           "scale_down_delay": null,
+           "target_in_flight_tokens": null,
+           "target_utilization_percentage": null
+          },
+          "chainlet_name": "HelloWorld"
+         },
+         {
+          "autoscaling_settings": {
+           "autoscaling_window": null,
+           "concurrency_target": null,
+           "max_replica": null,
+           "max_scale_down_rate": null,
+           "min_replica": 0,
+           "scale_down_delay": null,
+           "target_in_flight_tokens": null,
+           "target_utilization_percentage": null
+          },
+          "chainlet_name": "RandInt"
+         }
+        ]
+       ],
+       "items": {
+        "$ref": "#/$defs/ChainletEnvironmentAutoscalingSettingsUpdateV1"
+       },
+       "title": "Updates",
+       "type": "array"
+      }
+     },
+     "required": [
+      "updates"
+     ],
+     "title": "UpdateChainletEnvironmentAutoscalingSettingsRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "chain_id": {
+     "title": "Chain Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    },
+    "update_chainlet_environment_autoscaling_settings_request_v1": {
+     "$ref": "#/$defs/UpdateChainletEnvironmentAutoscalingSettingsRequestV1"
+    }
+   },
+   "required": [
+    "chain_id",
+    "env_name",
+    "update_chainlet_environment_autoscaling_settings_request_v1"
+   ],
+   "title": "MCP_update_chainlet_environment_autoscaling_settings_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "update_chainlet_environment_instance_type",
+  "description": "Updates a chainlet environment's instance type settings. The chainlet environment setting must exist. When updated, a new chain deployment is created and deployed. It is promoted to the chain environment according to promotion settings on the environment.",
+  "inputSchema": {
+   "$defs": {
+    "ChainletEnvironmentInstanceTypeUpdateV1": {
+     "description": "A request to update the environment settings for a chainlet.",
+     "properties": {
+      "chainlet_name": {
+       "description": "Name of the chainlet",
+       "examples": [
+        "HelloWorld"
+       ],
+       "title": "Chainlet Name",
+       "type": "string"
+      },
+      "instance_type_id": {
+       "description": "Key of the instance type to use for the chainlet",
+       "examples": [
+        "1x4",
+        "2x8",
+        "A10G:2x24x96"
+       ],
+       "title": "Instance Type Id",
+       "type": "string"
+      }
+     },
+     "required": [
+      "chainlet_name",
+      "instance_type_id"
+     ],
+     "title": "ChainletEnvironmentInstanceTypeUpdateV1",
+     "type": "object"
+    },
+    "UpdateChainletEnvironmentInstanceTypeRequestV1": {
+     "description": "A request to update the instance types for chainlets in an environment. Multiples\nupdates can be made in one request. The updates will be processed in batch and a new deployment\nwill be created, deployed and promoted into the environment.",
+     "properties": {
+      "updates": {
+       "description": "Mapping of chainlet name to the desired chainlet instance type. If the chainlet name doesn't exist, an error is returned.",
+       "examples": [
+        [
+         {
+          "chainlet_name": "HelloWorld",
+          "instance_type_id": "1x4"
+         },
+         {
+          "chainlet_name": "RandInt",
+          "instance_type_id": "A10G:2x24x96"
+         }
+        ]
+       ],
+       "items": {
+        "$ref": "#/$defs/ChainletEnvironmentInstanceTypeUpdateV1"
+       },
+       "title": "Updates",
+       "type": "array"
+      }
+     },
+     "required": [
+      "updates"
+     ],
+     "title": "UpdateChainletEnvironmentInstanceTypeRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "chain_id": {
+     "title": "Chain Id",
+     "type": "string"
+    },
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    },
+    "update_chainlet_environment_instance_type_request_v1": {
+     "$ref": "#/$defs/UpdateChainletEnvironmentInstanceTypeRequestV1"
+    }
+   },
+   "required": [
+    "chain_id",
+    "env_name",
+    "update_chainlet_environment_instance_type_request_v1"
+   ],
+   "title": "MCP_update_chainlet_environment_instance_type_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_secrets",
+  "description": "Gets all secrets (metadata only, no plain text keys)",
+  "inputSchema": {
+   "properties": {},
+   "title": "_NoArgsInput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_team_secrets",
+  "description": "Gets all secrets for a team (metadata only, no plain text keys)",
+  "inputSchema": {
+   "properties": {
+    "team_id": {
+     "title": "Team Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "team_id"
+   ],
+   "title": "MCP_list_team_secrets_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "upsert_secret",
+  "description": "Creates or updates a secret by name. Scoped to the caller's primary team \u2014 use the team-scoped variant to target a specific team.",
+  "inputSchema": {
+   "$defs": {
+    "UpsertSecretRequestV1": {
+     "description": "A request to create or update a Baseten secret by name.",
+     "properties": {
+      "name": {
+       "description": "Name of the new or existing secret",
+       "examples": [
+        "my_secret"
+       ],
+       "title": "Name",
+       "type": "string"
+      },
+      "value": {
+       "description": "Value of the secret",
+       "examples": [
+        "my_secret_value"
+       ],
+       "title": "Value",
+       "type": "string"
+      }
+     },
+     "required": [
+      "name",
+      "value"
+     ],
+     "title": "UpsertSecretRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "upsert_secret_request_v1": {
+     "$ref": "#/$defs/UpsertSecretRequestV1"
+    }
+   },
+   "required": [
+    "upsert_secret_request_v1"
+   ],
+   "title": "MCP_upsert_secret_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "upsert_team_secret",
+  "description": "Creates a new secret or updates an existing secret if one with the provided name already exists. The name and creation date of the created or updated secret is returned. This secret belongs to the specified team",
+  "inputSchema": {
+   "$defs": {
+    "UpsertSecretRequestV1": {
+     "description": "A request to create or update a Baseten secret by name.",
+     "properties": {
+      "name": {
+       "description": "Name of the new or existing secret",
+       "examples": [
+        "my_secret"
+       ],
+       "title": "Name",
+       "type": "string"
+      },
+      "value": {
+       "description": "Value of the secret",
+       "examples": [
+        "my_secret_value"
+       ],
+       "title": "Value",
+       "type": "string"
+      }
+     },
+     "required": [
+      "name",
+      "value"
+     ],
+     "title": "UpsertSecretRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "team_id": {
+     "title": "Team Id",
+     "type": "string"
+    },
+    "upsert_secret_request_v1": {
+     "$ref": "#/$defs/UpsertSecretRequestV1"
+    }
+   },
+   "required": [
+    "team_id",
+    "upsert_secret_request_v1"
+   ],
+   "title": "MCP_upsert_team_secret_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "delete_secret",
+  "description": "Deletes a secret by name in the specified team, or in the caller's organization default team when no team is specified.",
+  "inputSchema": {
+   "properties": {
+    "secret_name": {
+     "title": "Secret Name",
+     "type": "string"
+    },
+    "team_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Team Id"
+    }
+   },
+   "required": [
+    "secret_name"
+   ],
+   "title": "MCP_delete_secret_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_teams",
+  "description": "Returns a list of all teams the authenticated user has access to.",
+  "inputSchema": {
+   "properties": {},
+   "title": "_NoArgsInput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_team",
+  "description": "Returns a team the authenticated user has access to.",
+  "inputSchema": {
+   "properties": {
+    "team_id": {
+     "title": "Team Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "team_id"
+   ],
+   "title": "MCP_get_team_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_environment_groups",
+  "description": "Lists the environment groups for the team specified in the path, or for the caller's organization default team when no team is specified.",
+  "inputSchema": {
+   "properties": {
+    "team_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Team Id"
+    }
+   },
+   "title": "MCP_list_environment_groups_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_environment_group",
+  "description": "Gets a single environment group by name on the team specified in the path, or on the caller's organization default team when no team is specified.",
+  "inputSchema": {
+   "properties": {
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    },
+    "team_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Team Id"
+    }
+   },
+   "required": [
+    "env_name"
+   ],
+   "title": "MCP_get_environment_group_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "update_environment_group",
+  "description": "Sets whether the environment is restricted and replaces the list of users granted manage access. Targets the team specified in the path, or the caller's organization default team when no team is specified.",
+  "inputSchema": {
+   "$defs": {
+    "UpdateEnvironmentGroupManageAccessV1": {
+     "description": "Manage-access settings to apply to an environment group.",
+     "properties": {
+      "is_restricted": {
+       "description": "Whether to restrict this environment to a specific set of users.",
+       "title": "Is Restricted",
+       "type": "boolean"
+      },
+      "user_ids": {
+       "description": "IDs of users granted manage access while restricted. Only meaningful when is_restricted is true.",
+       "items": {
+        "type": "string"
+       },
+       "title": "User Ids",
+       "type": "array"
+      }
+     },
+     "required": [
+      "is_restricted"
+     ],
+     "title": "UpdateEnvironmentGroupManageAccessV1",
+     "type": "object"
+    },
+    "UpdateEnvironmentGroupRequestV1": {
+     "description": "A request to update an existing environment group.",
+     "properties": {
+      "manage_access": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/UpdateEnvironmentGroupManageAccessV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Manage-access settings to apply. Omit to leave manage access unchanged."
+      }
+     },
+     "title": "UpdateEnvironmentGroupRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "env_name": {
+     "title": "Env Name",
+     "type": "string"
+    },
+    "team_id": {
+     "anyOf": [
+      {
+       "type": "string"
+      },
+      {
+       "type": "null"
+      }
+     ],
+     "default": null,
+     "title": "Team Id"
+    },
+    "update_environment_group_request_v1": {
+     "$ref": "#/$defs/UpdateEnvironmentGroupRequestV1"
+    }
+   },
+   "required": [
+    "env_name"
+   ],
+   "title": "MCP_update_environment_group_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_api_keys",
+  "description": "Lists the user's API keys (metadata only, no plain text keys)",
+  "inputSchema": {
+   "properties": {},
+   "title": "_NoArgsInput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "delete_api_key",
+  "description": "Deletes an API key by prefix and returns info about the API key.",
+  "inputSchema": {
+   "properties": {
+    "api_key_prefix": {
+     "title": "Api Key Prefix",
+     "type": "string"
+    }
+   },
+   "required": [
+    "api_key_prefix"
+   ],
+   "title": "MCP_delete_api_key_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_billing_usage_summary",
+  "description": "Returns billing usage data within the specified date range. Includes dedicated model serving, training, and model APIs usage. The date range must not exceed 31 days.",
+  "inputSchema": {
+   "$defs": {
+    "UsageSummaryRequestV1": {
+     "properties": {
+      "start_date": {
+       "description": "Start date (ISO 8601, UTC). Earliest queryable: 2026-01-01.",
+       "format": "date-time",
+       "title": "Start Date",
+       "type": "string"
+      },
+      "end_date": {
+       "description": "End date in ISO 8601 format (UTC). Date range cannot exceed 31 days.",
+       "format": "date-time",
+       "title": "End Date",
+       "type": "string"
+      }
+     },
+     "required": [
+      "start_date",
+      "end_date"
+     ],
+     "title": "UsageSummaryRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "usage_summary_request_v1": {
+     "$ref": "#/$defs/UsageSummaryRequestV1"
+    }
+   },
+   "required": [
+    "usage_summary_request_v1"
+   ],
+   "title": "MCP_get_billing_usage_summary_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_training_projects",
+  "description": "List all training projects for the organization.",
+  "inputSchema": {
+   "properties": {},
+   "title": "_NoArgsInput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_training_project",
+  "description": "Get the details of an existing training project.",
+  "inputSchema": {
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "training_project_id"
+   ],
+   "title": "MCP_get_training_project_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "upsert_training_project",
+  "description": "Upserts a training project with the specified metadata.",
+  "inputSchema": {
+   "$defs": {
+    "UpsertTrainingProjectRequestV1": {
+     "description": "A request to upsert a training project.",
+     "properties": {
+      "training_project": {
+       "$ref": "#/$defs/UpsertTrainingProjectV1",
+       "description": "The training project to upsert."
+      }
+     },
+     "required": [
+      "training_project"
+     ],
+     "title": "UpsertTrainingProjectRequestV1",
+     "type": "object"
+    },
+    "UpsertTrainingProjectV1": {
+     "description": "Fields that can be upserted on a training project.",
+     "properties": {
+      "name": {
+       "description": "Name of the training project.",
+       "examples": [
+        "My Training Project"
+       ],
+       "title": "Name",
+       "type": "string"
+      }
+     },
+     "required": [
+      "name"
+     ],
+     "title": "UpsertTrainingProjectV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "upsert_training_project_request_v1": {
+     "$ref": "#/$defs/UpsertTrainingProjectRequestV1"
+    }
+   },
+   "required": [
+    "upsert_training_project_request_v1"
+   ],
+   "title": "MCP_upsert_training_project_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "delete_training_project",
+  "description": "Deletes a training project and all associated training jobs.",
+  "inputSchema": {
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "training_project_id"
+   ],
+   "title": "MCP_delete_training_project_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "create_training_job",
+  "description": "Creates a training job with the specified configuration.",
+  "inputSchema": {
+   "$defs": {
+    "AwsIamDockerAuthV1": {
+     "description": "AWS details for the registry.",
+     "properties": {
+      "access_key_secret_ref": {
+       "$ref": "#/$defs/SecretReferenceV1",
+       "description": "Name of the access key secret"
+      },
+      "secret_access_key_secret_ref": {
+       "$ref": "#/$defs/SecretReferenceV1",
+       "description": "Name of the secret key secret"
+      }
+     },
+     "required": [
+      "access_key_secret_ref",
+      "secret_access_key_secret_ref"
+     ],
+     "title": "AwsIamDockerAuthV1",
+     "type": "object"
+    },
+    "AwsOidcDockerAuthV1": {
+     "description": "AWS OIDC details for the registry.",
+     "properties": {
+      "role_arn": {
+       "description": "AWS IAM role ARN for OIDC authentication",
+       "title": "Role Arn",
+       "type": "string"
+      },
+      "region": {
+       "description": "AWS region for OIDC authentication",
+       "title": "Region",
+       "type": "string"
+      }
+     },
+     "required": [
+      "role_arn",
+      "region"
+     ],
+     "title": "AwsOidcDockerAuthV1",
+     "type": "object"
+    },
+    "BasetenLatestCheckpointConfig": {
+     "properties": {
+      "project_name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Name of the project to load the checkpoint from",
+       "title": "Project Name"
+      },
+      "job_id": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "ID of the job to load the checkpoint from",
+       "title": "Job Id"
+      },
+      "typ": {
+       "const": "baseten_latest_checkpoint",
+       "default": "baseten_latest_checkpoint",
+       "title": "Typ",
+       "type": "string"
+      }
+     },
+     "title": "BasetenLatestCheckpointConfig",
+     "type": "object"
+    },
+    "BasetenNamedCheckpointConfig": {
+     "properties": {
+      "checkpoint_name": {
+       "description": "Name of the checkpoint to load from",
+       "title": "Checkpoint Name",
+       "type": "string"
+      },
+      "project_name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Name of the project to load the checkpoint from",
+       "title": "Project Name"
+      },
+      "job_id": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "ID of the job to load the checkpoint from",
+       "title": "Job Id"
+      },
+      "typ": {
+       "const": "baseten_named_checkpoint",
+       "default": "baseten_named_checkpoint",
+       "title": "Typ",
+       "type": "string"
+      }
+     },
+     "required": [
+      "checkpoint_name"
+     ],
+     "title": "BasetenNamedCheckpointConfig",
+     "type": "object"
+    },
+    "CreateJobWeightConfigV1": {
+     "description": "Weight source configuration for MDN (Model Distribution Network).\n\nEnables training jobs to mount external model weights from HuggingFace, S3, GCS, or R2\nvia MDN's caching and CSI mounting infrastructure. Weights are mirrored once and\ndeduplicated across training jobs.",
+     "properties": {
+      "source": {
+       "description": "Weight source URI. Supported formats: hf://, s3://, gs://, r2://",
+       "examples": [
+        "hf://meta-llama/Llama-3-8B@main",
+        "s3://my-bucket/models/llama",
+        "gs://my-bucket/models/llama",
+        "r2://account_id.bucket/models/llama"
+       ],
+       "title": "Source",
+       "type": "string"
+      },
+      "mount_location": {
+       "description": "Path where weights will be mounted in the container",
+       "examples": [
+        "/app/models/base",
+        "/models/llama"
+       ],
+       "title": "Mount Location",
+       "type": "string"
+      },
+      "allow_patterns": {
+       "anyOf": [
+        {
+         "items": {
+          "type": "string"
+         },
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "File patterns to include (Unix-style shell patterns)",
+       "examples": [
+        [
+         "*.safetensors",
+         "config.json"
+        ]
+       ],
+       "title": "Allow Patterns"
+      },
+      "ignore_patterns": {
+       "anyOf": [
+        {
+         "items": {
+          "type": "string"
+         },
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "File patterns to exclude (Unix-style shell patterns)",
+       "examples": [
+        [
+         "*.bin",
+         "*.h5"
+        ]
+       ],
+       "title": "Ignore Patterns"
+      },
+      "auth_secret_name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Name of the workspace secret for authentication (e.g., HuggingFace token)",
+       "examples": [
+        "hf_token",
+        "aws_credentials"
+       ],
+       "title": "Auth Secret Name"
+      },
+      "auth": {
+       "anyOf": [
+        {
+         "additionalProperties": true,
+         "type": "object"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Authentication configuration for the weight source.",
+       "examples": [
+        {
+         "auth_method": "CUSTOM_SECRET",
+         "auth_secret_name": "hf_token"
+        }
+       ],
+       "title": "Auth"
+      }
+     },
+     "required": [
+      "source",
+      "mount_location"
+     ],
+     "title": "CreateJobWeightConfigV1",
+     "type": "object"
+    },
+    "CreateTrainingJobAcceleratorV1": {
+     "properties": {
+      "accelerator": {
+       "description": "GPU type for the training job.",
+       "examples": [
+        "H100"
+       ],
+       "title": "Accelerator",
+       "type": "string"
+      },
+      "count": {
+       "description": "GPUs needed for the training job.",
+       "examples": [
+        2
+       ],
+       "title": "Count",
+       "type": "integer"
+      }
+     },
+     "required": [
+      "accelerator",
+      "count"
+     ],
+     "title": "CreateTrainingJobAcceleratorV1",
+     "type": "object"
+    },
+    "CreateTrainingJobCacheConfig": {
+     "properties": {
+      "enable_legacy_hf_mount": {
+       "default": false,
+       "description": "Whether to enable the legacy Hugging Face cache.",
+       "examples": [
+        true
+       ],
+       "title": "Enable Legacy Hf Mount",
+       "type": "boolean"
+      },
+      "enabled": {
+       "default": false,
+       "description": "Whether to enable the read-write cache.",
+       "examples": [
+        true
+       ],
+       "title": "Enabled",
+       "type": "boolean"
+      },
+      "require_cache_affinity": {
+       "default": true,
+       "description": "Whether to require region affinity for the read-write cache. If False, the resulting job is not guaranteed to be deployed alongside the previous cache.",
+       "examples": [
+        true,
+        false
+       ],
+       "title": "Require Cache Affinity",
+       "type": "boolean"
+      },
+      "mount_base_path": {
+       "default": "/root/.cache",
+       "description": "Mount base path for the cache directory. The project cache and team cache will be mounted under this path.",
+       "examples": [
+        "/workspace/.cache",
+        "/root/.cache"
+       ],
+       "title": "Mount Base Path",
+       "type": "string"
+      }
+     },
+     "title": "CreateTrainingJobCacheConfig",
+     "type": "object"
+    },
+    "CreateTrainingJobCheckpointingConfig": {
+     "properties": {
+      "enabled": {
+       "default": false,
+       "description": "Whether checkpointing is enabled.",
+       "examples": [
+        true
+       ],
+       "title": "Enabled",
+       "type": "boolean"
+      },
+      "checkpoint_path": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "path where checkpoints will be saved.",
+       "examples": [
+        "/mnt/ckpts"
+       ],
+       "title": "Checkpoint Path"
+      },
+      "volume_size_gib": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Size of the volume in gibibytes. If not provided, the default size will be used",
+       "examples": [
+        10
+       ],
+       "title": "Volume Size Gib"
+      }
+     },
+     "title": "CreateTrainingJobCheckpointingConfig",
+     "type": "object"
+    },
+    "CreateTrainingJobComputeV1": {
+     "description": "Configuration to specify the compute for a training job.",
+     "properties": {
+      "node_count": {
+       "default": 1,
+       "description": "Number of nodes for the training job.",
+       "examples": [
+        1
+       ],
+       "title": "Node Count",
+       "type": "integer"
+      },
+      "cpu_count": {
+       "default": 1,
+       "description": "Number of cpus for the training job.",
+       "examples": [
+        1
+       ],
+       "title": "Cpu Count",
+       "type": "integer"
+      },
+      "memory": {
+       "default": "2Gi",
+       "description": "Memory for the training job.",
+       "examples": [
+        "2Gi"
+       ],
+       "title": "Memory",
+       "type": "string"
+      },
+      "accelerator": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/CreateTrainingJobAcceleratorV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "GPU specification for the training job",
+       "examples": [
+        {
+         "accelerator": "H100",
+         "count": 2
+        }
+       ]
+      },
+      "availability_model": {
+       "$ref": "#/$defs/V1AvailabilityModel",
+       "default": "dedicated",
+       "description": "Capacity guarantee for the job. 'dedicated' (the default) runs on on-demand capacity that is not preempted. 'spot' runs on interruptible capacity that may be preempted; the user is responsible for checkpointing their own progress.",
+       "examples": [
+        "spot"
+       ]
+      }
+     },
+     "title": "CreateTrainingJobComputeV1",
+     "type": "object"
+    },
+    "CreateTrainingJobImageV1": {
+     "description": "Configuration to create a training job image.",
+     "properties": {
+      "base_image": {
+       "description": "Base image for the training job.",
+       "examples": [
+        "hello-world"
+       ],
+       "title": "Base Image",
+       "type": "string"
+      },
+      "docker_auth": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/DockerAuthV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Docker authentication credentials"
+      }
+     },
+     "required": [
+      "base_image"
+     ],
+     "title": "CreateTrainingJobImageV1",
+     "type": "object"
+    },
+    "CreateTrainingJobRequestV1": {
+     "description": "A request to create a training job.",
+     "properties": {
+      "training_job": {
+       "$ref": "#/$defs/CreateTrainingJobV1",
+       "description": "The training job to create."
+      }
+     },
+     "required": [
+      "training_job"
+     ],
+     "title": "CreateTrainingJobRequestV1",
+     "type": "object"
+    },
+    "CreateTrainingJobRuntimeV1": {
+     "description": "Configuration to specify the runtime environment for a training job.",
+     "properties": {
+      "start_commands": {
+       "description": "Commands to execute when starting the runtime.",
+       "examples": [
+        [
+         "python main.py"
+        ]
+       ],
+       "items": {
+        "type": "string"
+       },
+       "title": "Start Commands",
+       "type": "array"
+      },
+      "environment_variables": {
+       "additionalProperties": {
+        "anyOf": [
+         {
+          "type": "string"
+         },
+         {
+          "$ref": "#/$defs/SecretReferenceV1"
+         }
+        ]
+       },
+       "description": "Environment variables to set in the runtime.",
+       "examples": [
+        {
+         "API_KEY": "your_api_key_here",
+         "PATH": "/usr/bin"
+        }
+       ],
+       "title": "Environment Variables",
+       "type": "object"
+      },
+      "artifacts": {
+       "description": "Runtime artifacts for the training job.",
+       "items": {
+        "$ref": "#/$defs/CreateTrainingJobS3Artifact"
+       },
+       "title": "Artifacts",
+       "type": "array"
+      },
+      "enable_cache": {
+       "anyOf": [
+        {
+         "type": "boolean"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Deprecated. Use cache_config instead.",
+       "examples": [
+        true
+       ],
+       "title": "Enable Cache"
+      },
+      "cache_config": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/CreateTrainingJobCacheConfig"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Configuration for the read-write cache.",
+       "examples": [
+        {
+         "enable_legacy_hf_mount": true,
+         "enabled": true,
+         "mount_base_path": "/root/.cache",
+         "require_cache_affinity": true
+        }
+       ]
+      },
+      "checkpointing_config": {
+       "$ref": "#/$defs/CreateTrainingJobCheckpointingConfig",
+       "description": "Configuration for checkpointing.",
+       "examples": [
+        {
+         "checkpoint_path": "/mnt/ckpts",
+         "enabled": true,
+         "volume_size_gib": null
+        }
+       ]
+      },
+      "load_checkpoint_config": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/LoadCheckpointConfig"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Configuration for loading checkpoints"
+      }
+     },
+     "title": "CreateTrainingJobRuntimeV1",
+     "type": "object"
+    },
+    "CreateTrainingJobS3Artifact": {
+     "properties": {
+      "s3_bucket": {
+       "description": "S3 bucket for the uploaded runtime artifact.",
+       "examples": [
+        "my-s3-bucket"
+       ],
+       "title": "S3 Bucket",
+       "type": "string"
+      },
+      "s3_key": {
+       "description": "S3 key for the uploaded runtime artifact.",
+       "examples": [
+        "my-s3-key"
+       ],
+       "title": "S3 Key",
+       "type": "string"
+      }
+     },
+     "required": [
+      "s3_bucket",
+      "s3_key"
+     ],
+     "title": "CreateTrainingJobS3Artifact",
+     "type": "object"
+    },
+    "CreateTrainingJobV1": {
+     "description": "Configuration for a training job.",
+     "properties": {
+      "image": {
+       "$ref": "#/$defs/CreateTrainingJobImageV1",
+       "examples": [
+        {
+         "base_image": "hello-world",
+         "docker_auth": null
+        }
+       ]
+      },
+      "compute": {
+       "$ref": "#/$defs/CreateTrainingJobComputeV1",
+       "examples": [
+        {
+         "accelerator": {
+          "accelerator": "H100",
+          "count": 2
+         },
+         "availability_model": "spot",
+         "cpu_count": 1,
+         "memory": "2Gi",
+         "node_count": 1
+        }
+       ]
+      },
+      "runtime": {
+       "$ref": "#/$defs/CreateTrainingJobRuntimeV1",
+       "description": "Configuration for the runtime environment of the training job.",
+       "examples": [
+        {
+         "artifacts": [],
+         "cache_config": null,
+         "checkpointing_config": {
+          "checkpoint_path": null,
+          "enabled": false,
+          "volume_size_gib": null
+         },
+         "enable_cache": null,
+         "environment_variables": {
+          "API_KEY": "your_api_key_here",
+          "PATH": "/usr/bin"
+         },
+         "load_checkpoint_config": null,
+         "start_commands": [
+          "python main.py"
+         ]
+        }
+       ]
+      },
+      "name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Name of the training job.",
+       "examples": [
+        "gpt-oss-job"
+       ],
+       "title": "Name"
+      },
+      "truss_user_env": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/TrussUserEnv"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Truss user environment information"
+      },
+      "interactive_session": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/InteractiveSessionConfigV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Configuration for interactive debugging sessions."
+      },
+      "weights": {
+       "description": "MDN weight sources to mount in the training container. Weights are mirrored and cached for fast startup.",
+       "examples": [
+        [
+         {
+          "allow_patterns": null,
+          "auth": null,
+          "auth_secret_name": null,
+          "ignore_patterns": null,
+          "mount_location": "/app/models/base",
+          "source": "hf://meta-llama/Llama-3-8B@main"
+         }
+        ]
+       ],
+       "items": {
+        "$ref": "#/$defs/CreateJobWeightConfigV1"
+       },
+       "title": "Weights",
+       "type": "array"
+      },
+      "enable_baseten_workdir": {
+       "default": false,
+       "description": "When enabled, uses /b10/workspace as the working directory instead of the image WORKDIR.",
+       "examples": [
+        false,
+        true
+       ],
+       "title": "Enable Baseten Workdir",
+       "type": "boolean"
+      },
+      "priority": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Queue priority. Higher values are dequeued first. Defaults to 0.",
+       "examples": [
+        0,
+        10,
+        100
+       ],
+       "title": "Priority"
+      }
+     },
+     "required": [
+      "image"
+     ],
+     "title": "CreateTrainingJobV1",
+     "type": "object"
+    },
+    "DockerAuthType": {
+     "enum": [
+      "GCP_SERVICE_ACCOUNT_JSON",
+      "AWS_IAM",
+      "AWS_OIDC",
+      "GCP_OIDC",
+      "REGISTRY_SECRET"
+     ],
+     "title": "DockerAuthType",
+     "type": "string"
+    },
+    "DockerAuthV1": {
+     "description": "Docker authentication credentials.",
+     "properties": {
+      "registry": {
+       "description": "Registry to authenticate with",
+       "title": "Registry",
+       "type": "string"
+      },
+      "auth_method": {
+       "$ref": "#/$defs/DockerAuthType",
+       "description": "Method to authenticate with the registry",
+       "examples": [
+        "GCP_SERVICE_ACCOUNT_JSON",
+        "AWS_IAM",
+        "AWS_OIDC",
+        "GCP_OIDC",
+        "REGISTRY_SECRET"
+       ]
+      },
+      "gcp_service_account_json_docker_auth": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/GcpServiceAccountJsonDockerAuthV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "GCP service account details for the registry"
+      },
+      "aws_iam_docker_auth": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/AwsIamDockerAuthV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "AWS details for the registry"
+      },
+      "aws_oidc_docker_auth": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/AwsOidcDockerAuthV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "AWS OIDC details for the registry"
+      },
+      "gcp_oidc_docker_auth": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/GcpOidcDockerAuthV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "GCP OIDC details for the registry"
+      },
+      "registry_secret_docker_auth": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/RegistrySecretDockerAuthV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Required when auth_method is REGISTRY_SECRET. Supports any Docker registry (Docker Hub, GHCR, NGC, etc.) via username:password credentials stored as a Baseten secret."
+      }
+     },
+     "required": [
+      "registry",
+      "auth_method"
+     ],
+     "title": "DockerAuthV1",
+     "type": "object"
+    },
+    "GcpOidcDockerAuthV1": {
+     "description": "GCP OIDC details for the registry.",
+     "properties": {
+      "service_account": {
+       "description": "GCP service account name for OIDC authentication",
+       "title": "Service Account",
+       "type": "string"
+      },
+      "workload_identity_provider": {
+       "description": "GCP workload identity provider for OIDC authentication",
+       "title": "Workload Identity Provider",
+       "type": "string"
+      }
+     },
+     "required": [
+      "service_account",
+      "workload_identity_provider"
+     ],
+     "title": "GcpOidcDockerAuthV1",
+     "type": "object"
+    },
+    "GcpServiceAccountJsonDockerAuthV1": {
+     "description": "GCP details for the registry.",
+     "properties": {
+      "service_account_json_secret_ref": {
+       "$ref": "#/$defs/SecretReferenceV1",
+       "description": "Name of the service account secret"
+      }
+     },
+     "required": [
+      "service_account_json_secret_ref"
+     ],
+     "title": "GcpServiceAccountJsonDockerAuthV1",
+     "type": "object"
+    },
+    "GitInfo": {
+     "properties": {
+      "latest_commit_sha": {
+       "title": "Latest Commit Sha",
+       "type": "string"
+      },
+      "latest_tag": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Latest Tag"
+      },
+      "commits_since_tag": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Commits Since Tag"
+      },
+      "has_uncommitted_changes": {
+       "title": "Has Uncommitted Changes",
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "latest_commit_sha",
+      "latest_tag",
+      "commits_since_tag",
+      "has_uncommitted_changes"
+     ],
+     "title": "GitInfo",
+     "type": "object"
+    },
+    "InteractiveSessionConfigV1": {
+     "description": "Configuration for interactive debugging sessions on training jobs.",
+     "properties": {
+      "trigger": {
+       "$ref": "#/$defs/V1InteractiveSessionTrigger",
+       "default": "on_demand",
+       "description": "When to create the interactive session. 'on_startup' creates on job start, 'on_failure' creates on job failure, 'on_demand' bypasses automatic session creation."
+      },
+      "timeout_minutes": {
+       "default": 480,
+       "description": "Number of minutes before the interactive session times out.",
+       "examples": [
+        480,
+        1440,
+        10080
+       ],
+       "title": "Timeout Minutes",
+       "type": "integer"
+      },
+      "session_provider": {
+       "$ref": "#/$defs/V1InteractiveSessionProvider",
+       "default": "vs_code",
+       "description": "The IDE client for the interactive session."
+      },
+      "auth_provider": {
+       "$ref": "#/$defs/V1InteractiveSessionAuthProvider",
+       "default": "github",
+       "description": "The authentication provider for the interactive session."
+      }
+     },
+     "title": "InteractiveSessionConfigV1",
+     "type": "object"
+    },
+    "LoadCheckpointConfig": {
+     "properties": {
+      "enabled": {
+       "default": false,
+       "description": "Whether checkpoint loading is enabled",
+       "title": "Enabled",
+       "type": "boolean"
+      },
+      "download_folder": {
+       "default": "/tmp/loaded_checkpoints",
+       "description": "Folder where checkpoints will be downloaded",
+       "title": "Download Folder",
+       "type": "string"
+      },
+      "checkpoints": {
+       "description": "List of checkpoint configurations",
+       "items": {
+        "discriminator": {
+         "mapping": {
+          "baseten_latest_checkpoint": "#/$defs/BasetenLatestCheckpointConfig",
+          "baseten_named_checkpoint": "#/$defs/BasetenNamedCheckpointConfig",
+          "loops_checkpoint": "#/$defs/LoopsCheckpointConfig"
+         },
+         "propertyName": "typ"
+        },
+        "oneOf": [
+         {
+          "$ref": "#/$defs/BasetenLatestCheckpointConfig"
+         },
+         {
+          "$ref": "#/$defs/BasetenNamedCheckpointConfig"
+         },
+         {
+          "$ref": "#/$defs/LoopsCheckpointConfig"
+         }
+        ]
+       },
+       "title": "Checkpoints",
+       "type": "array"
+      }
+     },
+     "title": "LoadCheckpointConfig",
+     "type": "object"
+    },
+    "LoopsCheckpointConfig": {
+     "properties": {
+      "run_id": {
+       "description": "ID of the Loops run to load the checkpoint from",
+       "title": "Run Id",
+       "type": "string"
+      },
+      "checkpoint_name": {
+       "description": "Name of the checkpoint to load",
+       "title": "Checkpoint Name",
+       "type": "string"
+      },
+      "target": {
+       "default": "trainer",
+       "description": "Which checkpoint target to load: 'trainer' (full training state) or 'sampler' (inference weights)",
+       "enum": [
+        "trainer",
+        "sampler"
+       ],
+       "title": "Target",
+       "type": "string"
+      },
+      "typ": {
+       "const": "loops_checkpoint",
+       "default": "loops_checkpoint",
+       "title": "Typ",
+       "type": "string"
+      }
+     },
+     "required": [
+      "run_id",
+      "checkpoint_name"
+     ],
+     "title": "LoopsCheckpointConfig",
+     "type": "object"
+    },
+    "RegistrySecretDockerAuthV1": {
+     "description": "Authentication via a Baseten secret for any Docker registry (Docker Hub, GHCR, NGC, etc.).\nThe referenced secret must contain credentials in the format 'username:password'.\nFor Docker Hub, set registry to 'https://index.docker.io/v1/'. For GHCR, use 'ghcr.io'.",
+     "properties": {
+      "secret_ref": {
+       "$ref": "#/$defs/SecretReferenceV1",
+       "description": "Reference to a Baseten secret containing credentials in the format 'username:password'"
+      }
+     },
+     "required": [
+      "secret_ref"
+     ],
+     "title": "RegistrySecretDockerAuthV1",
+     "type": "object"
+    },
+    "SecretReferenceV1": {
+     "properties": {
+      "name": {
+       "description": "Name of the secret to reference.",
+       "examples": [
+        "hf_token"
+       ],
+       "title": "Name",
+       "type": "string"
+      }
+     },
+     "required": [
+      "name"
+     ],
+     "title": "SecretReferenceV1",
+     "type": "object"
+    },
+    "TrussUserEnv": {
+     "description": "This data models is used to flexibly store info alongside oracle versions.\n\nThere is a corresponding data model in the truss client.\nIn contrast, here all fields are optional for backwards compatibility with old\nclients.",
+     "properties": {
+      "truss_client_version": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Truss Client Version"
+      },
+      "python_version": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Python Version"
+      },
+      "pydantic_version": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Pydantic Version"
+      },
+      "mypy_version": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "title": "Mypy Version"
+      },
+      "is_library_deployment": {
+       "default": false,
+       "title": "Is Library Deployment",
+       "type": "boolean"
+      },
+      "is_frontend_deployment": {
+       "default": false,
+       "title": "Is Frontend Deployment",
+       "type": "boolean"
+      },
+      "git_info": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/GitInfo"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null
+      }
+     },
+     "title": "TrussUserEnv",
+     "type": "object"
+    },
+    "V1AvailabilityModel": {
+     "description": "Capacity guarantee under which a training job is scheduled.\n\n``DEDICATED`` is on-demand capacity that is not preempted (the default). ``SPOT`` is\ninterruptible capacity that may be preempted; the user is responsible for checkpointing\ntheir own progress. A managed/resumable model where the platform handles\ncheckpoint/resume on its own is intentionally not defined yet; it is planned for a\nfuture milestone.",
+     "enum": [
+      "dedicated",
+      "spot"
+     ],
+     "title": "V1AvailabilityModel",
+     "type": "string"
+    },
+    "V1InteractiveSessionAuthProvider": {
+     "enum": [
+      "github",
+      "microsoft"
+     ],
+     "title": "V1InteractiveSessionAuthProvider",
+     "type": "string"
+    },
+    "V1InteractiveSessionProvider": {
+     "enum": [
+      "vs_code",
+      "cursor",
+      "ssh"
+     ],
+     "title": "V1InteractiveSessionProvider",
+     "type": "string"
+    },
+    "V1InteractiveSessionTrigger": {
+     "enum": [
+      "on_startup",
+      "on_failure",
+      "on_demand"
+     ],
+     "title": "V1InteractiveSessionTrigger",
+     "type": "string"
+    }
+   },
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "create_training_job_request_v1": {
+     "$ref": "#/$defs/CreateTrainingJobRequestV1"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "create_training_job_request_v1"
+   ],
+   "title": "MCP_create_training_job_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_training_jobs_for_project",
+  "description": "List all training jobs for the training project.",
+  "inputSchema": {
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "training_project_id"
+   ],
+   "title": "MCP_list_training_jobs_for_project_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_training_job",
+  "description": "Get the details of an existing training job.",
+  "inputSchema": {
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "training_job_id"
+   ],
+   "title": "MCP_get_training_job_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "update_training_job_priority",
+  "description": "Update mutable fields on a training job. Currently supports changing the queue priority of a PENDING job; higher priorities are dequeued first.",
+  "inputSchema": {
+   "$defs": {
+    "UpdateTrainingJobRequestV1": {
+     "description": "A request to update mutable fields on a training job.",
+     "properties": {
+      "priority": {
+       "description": "New queue priority for a PENDING training job. Higher values are dequeued first. Only jobs in the PENDING state can have their priority changed.",
+       "examples": [
+        0,
+        10,
+        100
+       ],
+       "title": "Priority",
+       "type": "integer"
+      }
+     },
+     "required": [
+      "priority"
+     ],
+     "title": "UpdateTrainingJobRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    },
+    "update_training_job_request_v1": {
+     "$ref": "#/$defs/UpdateTrainingJobRequestV1"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "training_job_id",
+    "update_training_job_request_v1"
+   ],
+   "title": "MCP_update_training_job_priority_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "delete_training_job",
+  "description": "Deletes a training job. Stops it first if still running.",
+  "inputSchema": {
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "training_job_id"
+   ],
+   "title": "MCP_delete_training_job_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "stop_training_job",
+  "description": "Stops a training job.",
+  "inputSchema": {
+   "$defs": {
+    "StopTrainingJobRequestV1": {
+     "description": "A request to stop a training job.",
+     "properties": {},
+     "title": "StopTrainingJobRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    },
+    "stop_training_job_request_v1": {
+     "$ref": "#/$defs/StopTrainingJobRequestV1"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "training_job_id"
+   ],
+   "title": "MCP_stop_training_job_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "recreate_training_job",
+  "description": "Create a new training job with the same configuration as an existing training job.",
+  "inputSchema": {
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "training_job_id"
+   ],
+   "title": "MCP_recreate_training_job_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_training_job_checkpoints",
+  "description": "Get the checkpoints for a training job.",
+  "inputSchema": {
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "training_job_id"
+   ],
+   "title": "MCP_get_training_job_checkpoints_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_training_job_checkpoint_files",
+  "description": "Get presigned URLs for all checkpoint files for a training job.",
+  "inputSchema": {
+   "$defs": {
+    "GetTrainingJobCheckpointFilesRequestV1": {
+     "description": "Pagination params for ``GET /v1/training_projects/.../checkpoint_files``.",
+     "properties": {
+      "page_size": {
+       "default": 1000,
+       "description": "Max files per page (default 1000).",
+       "minimum": 1,
+       "title": "Page Size",
+       "type": "integer"
+      },
+      "page_token": {
+       "default": 0,
+       "description": "Offset into the file list (default 0).",
+       "minimum": 0,
+       "title": "Page Token",
+       "type": "integer"
+      }
+     },
+     "title": "GetTrainingJobCheckpointFilesRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    },
+    "get_training_job_checkpoint_files_request_v1": {
+     "$ref": "#/$defs/GetTrainingJobCheckpointFilesRequestV1"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "training_job_id"
+   ],
+   "title": "MCP_get_training_job_checkpoint_files_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "download_training_job_artifacts",
+  "description": "Get the uploaded training job as a S3 Artifact",
+  "inputSchema": {
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "training_job_id"
+   ],
+   "title": "MCP_download_training_job_artifacts_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_training_job_auth_codes",
+  "description": "Get authentication codes for all nodes of a training job's interactive sessions.",
+  "inputSchema": {
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "training_job_id"
+   ],
+   "title": "MCP_get_training_job_auth_codes_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "patch_interactive_session",
+  "description": "Update specific fields on a training job's interactive session. Only provided (non-null) fields are updated.",
+  "inputSchema": {
+   "$defs": {
+    "PatchInteractiveSessionRequestV1": {
+     "description": "Request to patch an interactive session.\n\nOnly fields that are provided (non-None) will be applied.",
+     "properties": {
+      "timeout_minutes": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "For on_startup sessions, minutes to add to the expiration. For on_demand/on_failure sessions, minutes to add to the timeout. Use -1 for infinite timeout (bumps by 10 years).",
+       "title": "Timeout Minutes"
+      },
+      "trigger": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/V1InteractiveSessionTrigger"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Update when the interactive session is created. Cannot be changed if the session trigger is 'on_startup'."
+      }
+     },
+     "title": "PatchInteractiveSessionRequestV1",
+     "type": "object"
+    },
+    "V1InteractiveSessionTrigger": {
+     "enum": [
+      "on_startup",
+      "on_failure",
+      "on_demand"
+     ],
+     "title": "V1InteractiveSessionTrigger",
+     "type": "string"
+    }
+   },
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    },
+    "session_id": {
+     "title": "Session Id",
+     "type": "string"
+    },
+    "patch_interactive_session_request_v1": {
+     "$ref": "#/$defs/PatchInteractiveSessionRequestV1"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "training_job_id",
+    "session_id"
+   ],
+   "title": "MCP_patch_interactive_session_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "sign_ssh_certificate_training_job",
+  "description": "Signs a short-lived SSH certificate granting access to a specific training job pod. Returns the signed SSH certificate, a JWT token for SSH proxy authentication, the proxy address to connect through, and the certificate expiry time.",
+  "inputSchema": {
+   "$defs": {
+    "SignSSHCertificateRequestV1": {
+     "description": "Request to sign an SSH certificate for accessing a workload pod.",
+     "properties": {
+      "public_key": {
+       "description": "The user's SSH public key (e.g., 'ssh-ed25519 AAAA... user@host').",
+       "title": "Public Key",
+       "type": "string"
+      },
+      "replica_id": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "The replica to connect to. Required for training jobs (e.g. '0'). Optional for inference (server picks a running replica if omitted).",
+       "title": "Replica Id"
+      }
+     },
+     "required": [
+      "public_key"
+     ],
+     "title": "SignSSHCertificateRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    },
+    "sign_ssh_certificate_request_v1": {
+     "$ref": "#/$defs/SignSSHCertificateRequestV1"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "training_job_id",
+    "sign_ssh_certificate_request_v1"
+   ],
+   "title": "MCP_sign_ssh_certificate_training_job_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_training_project_cache_summary",
+  "description": "Get the cache summary for the most recent training job in the project.",
+  "inputSchema": {
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "training_project_id"
+   ],
+   "title": "MCP_get_training_project_cache_summary_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_training_gpu_capacity",
+  "description": "Returns GPU capacity limits (baseline and peak) and current usage for the organization.",
+  "inputSchema": {
+   "properties": {},
+   "title": "_NoArgsInput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "update_team_training_gpu_capacity",
+  "description": "Sets the max concurrent GPUs of a given type a team may use. Creates the limit if one doesn't exist for this (team, gpu_type) pair, otherwise updates it in place. Org-admin only: this is a ceiling the org imposes on the team, not something the team manages for itself.",
+  "inputSchema": {
+   "$defs": {
+    "PatchTeamTrainingGpuCapacityRequestV1": {
+     "description": "A request to set the GPU capacity ceiling for a (team, gpu_type) pair.\n\nCreates the limit if one doesn't already exist for this team and GPU type,\notherwise updates it in place.",
+     "properties": {
+      "team_id": {
+       "description": "Team identifier",
+       "title": "Team Id",
+       "type": "string"
+      },
+      "gpu_type": {
+       "description": "GPU type identifier (e.g. H100, A100-40GB)",
+       "title": "Gpu Type",
+       "type": "string"
+      },
+      "max_gpus": {
+       "description": "Max concurrent GPUs of this type the team may use",
+       "examples": [
+        8,
+        16,
+        32
+       ],
+       "title": "Max Gpus",
+       "type": "integer"
+      }
+     },
+     "required": [
+      "team_id",
+      "gpu_type",
+      "max_gpus"
+     ],
+     "title": "PatchTeamTrainingGpuCapacityRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "patch_team_training_gpu_capacity_request_v1": {
+     "$ref": "#/$defs/PatchTeamTrainingGpuCapacityRequestV1"
+    }
+   },
+   "required": [
+    "patch_team_training_gpu_capacity_request_v1"
+   ],
+   "title": "MCP_update_team_training_gpu_capacity_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_training_job_queue_context",
+  "description": "Returns the (org, gpu_type) capacity pool the job was gated by, jobs that were holding GPU capacity in that pool when this job was submitted, and every TrainingJobStatus event in [submitted_at, released_at] for those jobs \u2014 useful for understanding why a job sat in PENDING. Caller must be an org admin and the job must belong to the caller's org.",
+  "inputSchema": {
+   "properties": {
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "training_job_id"
+   ],
+   "title": "MCP_get_training_job_queue_context_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_user_training_workload_plane_overrides",
+  "description": "Returns all per-user training workload-plane override entries for the user identified by ID in the URL path.",
+  "inputSchema": {
+   "properties": {
+    "user_id": {
+     "title": "User Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "user_id"
+   ],
+   "title": "MCP_get_user_training_workload_plane_overrides_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "update_user_training_workload_plane_overrides",
+  "description": "Applies per-entry changes to the user's training workload-plane overrides. Each item upserts the (gpu_type, is_multinode) row to the named workload plane; passing workload_plane_name=null deletes that row. Entries not in the request body are left unchanged.",
+  "inputSchema": {
+   "$defs": {
+    "UpdateTrainingWorkloadPlaneOverrideItemV1": {
+     "description": "One change in a PATCH request body.\n\n``workload_plane_name=None`` deletes the matching ``(gpu_type, is_multinode)``\nrow; any other value upserts it.",
+     "properties": {
+      "gpu_type": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "GPU type (e.g. 'H100'). null means CPU-only / no-GPU rows.",
+       "title": "Gpu Type"
+      },
+      "is_multinode": {
+       "default": false,
+       "description": "True iff this entry applies to multi-node training (node_count > 1).",
+       "title": "Is Multinode",
+       "type": "boolean"
+      },
+      "workload_plane_name": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Target workload plane. null deletes the override for (gpu_type, is_multinode); any other value upserts.",
+       "title": "Workload Plane Name"
+      }
+     },
+     "title": "UpdateTrainingWorkloadPlaneOverrideItemV1",
+     "type": "object"
+    },
+    "UpdateUserTrainingWorkloadPlaneOverridesRequestV1": {
+     "description": "Body for PATCH ``/v1/training/workload_plane_overrides/users/<user_id>``.",
+     "properties": {
+      "overrides": {
+       "description": "Override entries to upsert (workload_plane_name set) or delete (null).",
+       "items": {
+        "$ref": "#/$defs/UpdateTrainingWorkloadPlaneOverrideItemV1"
+       },
+       "title": "Overrides",
+       "type": "array"
+      }
+     },
+     "required": [
+      "overrides"
+     ],
+     "title": "UpdateUserTrainingWorkloadPlaneOverridesRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "user_id": {
+     "title": "User Id",
+     "type": "string"
+    },
+    "update_user_training_workload_plane_overrides_request_v1": {
+     "$ref": "#/$defs/UpdateUserTrainingWorkloadPlaneOverridesRequestV1"
+    }
+   },
+   "required": [
+    "user_id",
+    "update_user_training_workload_plane_overrides_request_v1"
+   ],
+   "title": "MCP_update_user_training_workload_plane_overrides_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": true,
+   "idempotentHint": false,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_training_job_logs",
+  "description": "Get the logs for a training job with the provided filters.",
+  "inputSchema": {
+   "$defs": {
+    "GetTrainingJobLogsRequestV1": {
+     "description": "A request to fetch training logs.",
+     "properties": {
+      "start_epoch_millis": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Epoch milliseconds at which to start fetching logs. Defaults to 30 minutes before the end. The window from start to end must not exceed 7 days.",
+       "title": "Start Epoch Millis"
+      },
+      "end_epoch_millis": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Epoch milliseconds at which to stop fetching logs. Defaults to the current time.",
+       "title": "End Epoch Millis"
+      },
+      "direction": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/SortOrderV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Sort order for logs"
+      },
+      "limit": {
+       "anyOf": [
+        {
+         "maximum": 1000,
+         "minimum": 1,
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": 500,
+       "description": "Limit of logs to fetch in a single request",
+       "title": "Limit"
+      },
+      "min_level": {
+       "anyOf": [
+        {
+         "$ref": "#/$defs/LogLevelV1"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Minimum log severity to include. Omit to return all log lines, including lines that have no level. Any explicit value returns lines at or above that severity and drops lines without a level."
+      }
+     },
+     "title": "GetTrainingJobLogsRequestV1",
+     "type": "object"
+    },
+    "LogLevelV1": {
+     "description": "A log severity level.",
+     "enum": [
+      "DEBUG",
+      "INFO",
+      "WARNING",
+      "ERROR"
+     ],
+     "title": "LogLevelV1",
+     "type": "string"
+    },
+    "SortOrderV1": {
+     "enum": [
+      "asc",
+      "desc"
+     ],
+     "title": "SortOrderV1",
+     "type": "string"
+    }
+   },
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    },
+    "get_training_job_logs_request_v1": {
+     "$ref": "#/$defs/GetTrainingJobLogsRequestV1"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "training_job_id"
+   ],
+   "title": "MCP_get_training_job_logs_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_training_job_metrics",
+  "description": "Get the metrics for a training job.",
+  "inputSchema": {
+   "$defs": {
+    "GetTrainingJobMetricsRequestV1": {
+     "description": "A request to fetch metrics. Allows the user to request metrics over a period of time.",
+     "properties": {
+      "end_epoch_millis": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Epoch millis timestamp to end fetching metrics",
+       "title": "End Epoch Millis"
+      },
+      "start_epoch_millis": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Epoch millis timestamp to start fetching metrics.",
+       "title": "Start Epoch Millis"
+      },
+      "step_seconds": {
+       "anyOf": [
+        {
+         "type": "integer"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Resolution of the returned series, in seconds. When omitted, a step is derived from the time range so large windows return fewer points.",
+       "title": "Step Seconds"
+      }
+     },
+     "title": "GetTrainingJobMetricsRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "training_project_id": {
+     "title": "Training Project Id",
+     "type": "string"
+    },
+    "training_job_id": {
+     "title": "Training Job Id",
+     "type": "string"
+    },
+    "get_training_job_metrics_request_v1": {
+     "$ref": "#/$defs/GetTrainingJobMetricsRequestV1"
+    }
+   },
+   "required": [
+    "training_project_id",
+    "training_job_id"
+   ],
+   "title": "MCP_get_training_job_metrics_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "search_training_jobs",
+  "description": "Search training jobs for the organization.",
+  "inputSchema": {
+   "$defs": {
+    "OrderByV1": {
+     "description": "A request to order training jobs.",
+     "properties": {
+      "field": {
+       "description": "The field to order by.",
+       "examples": [
+        "created_at"
+       ],
+       "title": "Field",
+       "type": "string"
+      },
+      "order": {
+       "description": "The direction to order by.",
+       "examples": [
+        "asc",
+        "desc"
+       ],
+       "title": "Order",
+       "type": "string"
+      }
+     },
+     "required": [
+      "field",
+      "order"
+     ],
+     "title": "OrderByV1",
+     "type": "object"
+    },
+    "SearchTrainingJobsRequestV1": {
+     "description": "A request to search training jobs.",
+     "properties": {
+      "project_id": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Filter the training jobs by project ID.",
+       "examples": [
+        "n4q95w5"
+       ],
+       "title": "Project Id"
+      },
+      "job_id": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Filter the training jobs by job ID.",
+       "examples": [
+        "p7qr9qv"
+       ],
+       "title": "Job Id"
+      },
+      "statuses": {
+       "anyOf": [
+        {
+         "items": {
+          "type": "string"
+         },
+         "type": "array"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Filter the training jobs by status.",
+       "examples": [
+        [
+         "TRAINING_JOB_RUNNING",
+         "TRAINING_JOB_COMPLETED"
+        ]
+       ],
+       "title": "Statuses"
+      },
+      "order_by": {
+       "default": [
+        {
+         "field": "created_at",
+         "order": "desc"
+        }
+       ],
+       "description": "Order the training jobs by a field. Currently supports created_at",
+       "items": {
+        "$ref": "#/$defs/OrderByV1"
+       },
+       "title": "Order By",
+       "type": "array"
+      }
+     },
+     "title": "SearchTrainingJobsRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "search_training_jobs_request_v1": {
+     "$ref": "#/$defs/SearchTrainingJobsRequestV1"
+    }
+   },
+   "title": "MCP_search_training_jobs_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "list_users",
+  "description": "Returns the workspace's members. Only actual joined members are returned; service accounts, invited users, and pending join requests are excluded.",
+  "inputSchema": {
+   "$defs": {
+    "UsersRequestV1": {
+     "description": "Request parameters for listing users.",
+     "properties": {
+      "cursor": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "default": null,
+       "description": "Opaque cursor returned by a previous page. Omit to fetch the first page.",
+       "title": "Cursor"
+      },
+      "limit": {
+       "default": 100,
+       "description": "Maximum number of items to return.",
+       "maximum": 1000,
+       "minimum": 1,
+       "title": "Limit",
+       "type": "integer"
+      }
+     },
+     "title": "UsersRequestV1",
+     "type": "object"
+    }
+   },
+   "properties": {
+    "users_request_v1": {
+     "$ref": "#/$defs/UsersRequestV1"
+    }
+   },
+   "title": "MCP_list_users_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_current_user",
+  "description": "Returns info about the user making the request.",
+  "inputSchema": {
+   "properties": {},
+   "title": "_NoArgsInput",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ },
+ {
+  "name": "get_user",
+  "description": "Returns info about a user in the caller's workspace.",
+  "inputSchema": {
+   "properties": {
+    "user_id": {
+     "title": "User Id",
+     "type": "string"
+    }
+   },
+   "required": [
+    "user_id"
+   ],
+   "title": "MCP_get_user_input",
+   "type": "object"
+  },
+  "annotations": {
+   "readOnlyHint": true,
+   "destructiveHint": false,
+   "idempotentHint": true,
+   "openWorldHint": false
+  }
+ }
+]

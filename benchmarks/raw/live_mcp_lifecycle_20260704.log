@@ -1,0 +1,126 @@
+# MCP-driven lifecycle transcript — 2026-07-04 (UTC). Assembled from session-captured
+# command outputs (redacted; key never present). Sources: background poll logs +
+# MCP tools/call results recorded during the session.
+
+## workspace state BEFORE (MCP list_deployments_for_model, ~19:0x)
+model 3ydn1e43: qvm1v4e INACTIVE 0 (prod) | w52yvzr INACTIVE 0 | q86yjdy DEPLOY_FAILED 0
+model qrj78jv3: qjj05vj INACTIVE 0 | qz47j5o BUILD_FAILED 0 | w52ym5j INACTIVE 0 | wno2dv0 INACTIVE 0 (prod)
+
+## MCP tools/list: 88 tools (full dump follows at end)
+
+## activate_environment(model_id=3ydn1e43, env_name=production) → {"success": true}
+invoked at 2026-07-04T19:10:54Z (date -u captured in same command)
+
+## get_deployment poll (every ~12s, background job ba8w5tj58):
+19:11:13 DEPLOYING 0
+19:11:25 DEPLOYING 0
+19:11:37 DEPLOYING 0
+19:11:49 DEPLOYING 0
+19:12:01 DEPLOYING 0
+19:12:13 DEPLOYING 0
+19:12:25 DEPLOYING 0
+19:12:36 DEPLOYING 0
+19:12:48 ACTIVE 1
+
+## 7 streaming requests 19:13:18 → benchmarks/raw/live_mcp_activation_20260704-191318.csv
+
+## get_deployment_metrics calls (times derived from each file's window epochs):
+SUMMARY #1 (lag capture) window 18:58:50→19:13:50 → live_mcp_metrics_summary_20260704-191352.json
+SUMMARY #2 window 19:00:45→19:15:45 → live_mcp_metrics_summary_20260704-191613.json (fetched by 90s-delayed background job; file copied 19:16:13)
+SERIES window 18:55:32→~19:15:4x step 30s → live_mcp_metrics_series_20260704-191550.json (saved 19:15:50; ran concurrently with SUMMARY #2)
+
+## deactivate_environment(model_id=3ydn1e43, env_name=production) → {'success': True}
+invoked at 2026-07-04T19:16:16Z (date -u captured in same command)
+
+## get_deployment verify (background job bmhqzys5i):
+19:16:28 INACTIVE 0
+
+## MCP tools/list full dump (names only):
+  list_library_models
+  get_library_model
+  get_model
+  list_models
+  delete_model
+  deploy_model_from_library
+  list_model_apis
+  get_model_api
+  list_instance_types
+  list_instance_type_prices
+  get_deployment
+  list_deployments_for_model
+  delete_deployment
+  get_deployment_download_url
+  get_deployment_config
+  get_deployment_logs
+  get_deployment_metrics
+  create_deployment_patch
+  get_deployment_patches_state
+  sync_deployment_patches
+  get_chain
+  list_chains
+  delete_chain
+  get_chain_deployment
+  list_chain_deployments_for_chain
+  delete_chain_deployment
+  deactivate_chain_deployment
+  get_chainlet_logs
+  get_environment
+  list_environments_for_model
+  get_environment_logs
+  update_environment
+  activate_environment
+  deactivate_environment
+  promote_to_environment
+  cancel_promotion
+  pause_promotion
+  resume_promotion
+  force_cancel_promotion
+  force_roll_forward_promotion
+  get_chain_environment
+  list_chain_environments_for_chain
+  update_chain_environment
+  promote_to_chain_environment
+  update_chainlet_environment_autoscaling_settings
+  update_chainlet_environment_instance_type
+  list_secrets
+  list_team_secrets
+  upsert_secret
+  upsert_team_secret
+  delete_secret
+  list_teams
+  get_team
+  list_environment_groups
+  get_environment_group
+  update_environment_group
+  list_api_keys
+  delete_api_key
+  get_billing_usage_summary
+  list_training_projects
+  get_training_project
+  upsert_training_project
+  delete_training_project
+  create_training_job
+  list_training_jobs_for_project
+  get_training_job
+  update_training_job_priority
+  delete_training_job
+  stop_training_job
+  recreate_training_job
+  get_training_job_checkpoints
+  get_training_job_checkpoint_files
+  download_training_job_artifacts
+  get_training_job_auth_codes
+  patch_interactive_session
+  sign_ssh_certificate_training_job
+  get_training_project_cache_summary
+  get_training_gpu_capacity
+  update_team_training_gpu_capacity
+  get_training_job_queue_context
+  get_user_training_workload_plane_overrides
+  update_user_training_workload_plane_overrides
+  get_training_job_logs
+  get_training_job_metrics
+  search_training_jobs
+  list_users
+  get_current_user
+  get_user
