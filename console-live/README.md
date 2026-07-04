@@ -13,7 +13,10 @@ This console is **observe-only**. It calls three GET endpoints of the Baseten
 management API (`/v1/models`, `.../deployments`, `.../metrics`) and never
 mutates anything. Recommendations are advisory text. Autonomous mitigation
 (quarantine, spill, self-heal) requires a router in the request path — that
-half lives in the recorded control-plane demo, not here.
+half lives in the recorded control-plane demo
+([site-console/](../site-console/), live MTTR 8.8–9.2 s drills replayed from
+real traces), not here. How the two layers relate to Baseten's own MCP+skill
+toolkit: [docs/COMPETITIVE_LANDSCAPE.md](../docs/COMPETITIVE_LANDSCAPE.md).
 
 ## Run locally
 
