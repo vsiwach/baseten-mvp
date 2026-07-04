@@ -163,6 +163,7 @@ def feed_item(event: dict) -> dict | None:
     return {"req": event["req"], "tier": event.get("wl_tier", "agent"),
             "tag": event.get("tag"), "pool": event.get("replica", ""),
             "reason": event.get("reason", ""),
+            "ttft_ms": event.get("ttft_ms", 0.0),
             "decide_ms": event.get("decide_ms", 0.0),
             "ts": event.get("iso_ts", "")}
 

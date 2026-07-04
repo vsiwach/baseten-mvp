@@ -1,0 +1,97 @@
+{
+ "model": "Qwen3-8B-AWQ",
+ "target": "dedicated T4 · custom Truss · vLLM",
+ "attempts": [
+  {
+   "attempt": 1,
+   "ts": "16:02",
+   "outcome": "failed",
+   "stage": "truss push",
+   "error": "config validation: unsupported python_version in config.yaml",
+   "diagnosis": "Agent: Truss config schema pins supported runtimes; py312 not accepted for this base image — set py311.",
+   "citation": {
+    "title": "Truss config reference",
+    "url": "https://docs.baseten.co/truss/reference/config"
+   },
+   "duration_s": 41
+  },
+  {
+   "attempt": 2,
+   "ts": "16:11",
+   "outcome": "failed",
+   "stage": "image build",
+   "error": "pip resolution conflict: vllm requires torch pinned below installed version",
+   "diagnosis": "Agent: base image ships newer torch; pin vllm + torch pair per docs compatibility matrix.",
+   "citation": {
+    "title": "Custom model dependencies",
+    "url": "https://docs.baseten.co/deploy/guides/custom-model"
+   },
+   "duration_s": 388
+  },
+  {
+   "attempt": 3,
+   "ts": "16:24",
+   "outcome": "failed",
+   "stage": "model load",
+   "error": "AWQ marlin kernel requires compute capability >= 8.0 (T4 is sm_75)",
+   "diagnosis": "Agent: T4 can't run marlin; force quantization=awq (gemm kernels) in vLLM engine args.",
+   "citation": {
+    "title": "GPU instance types",
+    "url": "https://docs.baseten.co/deploy/reference/instances"
+   },
+   "duration_s": 512
+  },
+  {
+   "attempt": 4,
+   "ts": "16:41",
+   "outcome": "failed",
+   "stage": "model load",
+   "error": "CUDA out of memory allocating KV cache (16GB T4)",
+   "diagnosis": "Agent: default max_model_len oversizes KV cache on 16GB; reduce max_model_len and gpu_memory_utilization.",
+   "citation": {
+    "title": "vLLM engine configuration",
+    "url": "https://docs.baseten.co/deploy/guides/vllm"
+   },
+   "duration_s": 496
+  },
+  {
+   "attempt": 5,
+   "ts": "16:58",
+   "outcome": "failed",
+   "stage": "health check",
+   "error": "readiness probe timed out before weights finished loading",
+   "diagnosis": "Agent: cold load exceeds default readiness window; raise health-check timeout in resources config.",
+   "citation": {
+    "title": "Health checks & readiness",
+    "url": "https://docs.baseten.co/deploy/reference/health-checks"
+   },
+   "duration_s": 611
+  },
+  {
+   "attempt": 6,
+   "ts": "17:15",
+   "outcome": "failed",
+   "stage": "invoke",
+   "error": "424 FAILED_DEPENDENCY on first /predict — request schema mismatch",
+   "diagnosis": "Agent: Truss predict expects wrapped input; align client payload with model_input schema.",
+   "citation": {
+    "title": "Calling your model",
+    "url": "https://docs.baseten.co/invoke/quickstart"
+   },
+   "duration_s": 187
+  },
+  {
+   "attempt": 7,
+   "ts": "17:29",
+   "outcome": "live",
+   "stage": "live",
+   "error": null,
+   "diagnosis": "Agent: deployment healthy — first token 349ms, streaming stable on dedicated T4.",
+   "citation": {
+    "title": "Deployment statuses",
+    "url": "https://docs.baseten.co/deploy/reference/statuses"
+   },
+   "duration_s": 344
+  }
+ ]
+}

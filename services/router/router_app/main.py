@@ -667,6 +667,188 @@ def get_app(registry_path: Path | None = None,
         page = Path(__file__).parent / "static" / "devboard.html"
         return HTMLResponse(page.read_text())
 
+    # ---- live demo board (design handoff wired to real data) -------------
+    # demo/devboard.html is the design source of truth; serving it with
+    # mock-data.js swapped for live-data.js IS the integration — no copies.
+    _repo_root = Path(__file__).resolve().parents[3]
+
+    @app.get("/demoboard")
+    def demoboard_page():
+        from fastapi.responses import HTMLResponse
+        page = (_repo_root / "demo" / "devboard.html").read_text()
+        return HTMLResponse(page.replace("mock-data.js", "demo-assets/live-data.js")
+                                .replace('href="tokens.css"',
+                                         'href="demo-assets/tokens.css"'))
+
+    @app.get("/demoboard/deploy")
+    def demoboard_deploy_page():
+        from fastapi.responses import HTMLResponse
+        page = (_repo_root / "demo" / "deploy.html").read_text()
+        return HTMLResponse(page.replace("mock-data.js", "demo-assets/live-data.js")
+                                .replace('href="tokens.css"',
+                                         'href="demo-assets/tokens.css"'))
+
+    @app.get("/demo-assets/{name}")
+    def demo_asset(name: str):
+        from fastapi.responses import FileResponse
+        allowed = {"live-data.js": "application/javascript",
+                   "tokens.css": "text/css",
+                   "deploy-timeline.json": "application/json"}
+        if name not in allowed:
+            return _error(404, "unknown_asset", name)
+        return FileResponse(_repo_root / "demo" / name,
+                            media_type=allowed[name])
+
+    @app.get("/replay/")
+    def replay_page():
+        from fastapi.responses import HTMLResponse
+        return HTMLResponse((_repo_root / "site" / "index.html").read_text())
+
+    @app.get("/replay/replay-data.js")
+    def replay_data():
+        from fastapi.responses import FileResponse
+        return FileResponse(_repo_root / "site" / "replay-data.js",
+                            media_type="application/javascript")
+
+    @app.post("/v1/dev/drill")
+    async def dev_drill(request: Request):
+        """One-call scripted chaos drill (server-side, so a throttled demo
+        tab can trigger it): drive load, inject a fault on a pool, wait for
+        the agent to quarantine, then clear the fault — the agent probes,
+        reinstates and resolves on its own. Mirrors tools/chaos.py drill."""
+        import threading
+        import time as _t
+        body = await request.json()
+        latency_ms = float(body.get("latency_ms", 600))
+        error_rate = float(body.get("error_rate", 0))
+        model = body.get("model", "qwen3-8b")
+
+        def run():
+            ctx = _board_ctx()
+            if ctx is None:
+                return
+            pool = ctx[1][0]["id"]
+            url = ctx[1][0]["url"]
+            def load(n_end):
+                n = 0
+                while _t.monotonic() < n_end:
+                    n += 1
+                    try:
+                        gen, *_ = state.proxy_chat_stream(
+                            model, {"model": model, "max_tokens": 8,
+                                    "stream": True, "messages": [{"role":
+                                    "user", "content": f"drill {n}"}]}, {})
+                        for _ in gen:
+                            pass
+                    except Exception:  # noqa: BLE001
+                        pass
+                    _t.sleep(0.7)
+            threading.Thread(target=load,
+                             args=(_t.monotonic() + 120,), daemon=True).start()
+            _t.sleep(5)
+            httpx.post(f"{url}/chaos",
+                       json={"latency_ms": latency_ms,
+                             "error_rate": error_rate}, timeout=5)
+            state.events.emit("config_change", target="chaos-injection",
+                              pool_id=pool, latency_ms=latency_ms,
+                              error_rate=error_rate)
+            deadline = _t.monotonic() + 60
+            while _t.monotonic() < deadline:
+                _t.sleep(1)
+                incs = state.incidents.snapshot()
+                if any(i["live"] and any("quarantined" in a
+                       for a in i["actions"]) for i in incs):
+                    break
+            httpx.post(f"{url}/chaos",
+                       json={"latency_ms": 0, "error_rate": 0}, timeout=5)
+            state.events.emit("config_change", target="chaos-cleared",
+                              pool_id=pool)
+
+        threading.Thread(target=run, daemon=True, name="dev-drill").start()
+        return {"status": "drill started"}
+
+    @app.post("/v1/dev/load")
+    async def dev_load(request: Request):
+        """Server-side demo load: streams N rps of real chat requests through
+        the router's own selection/telemetry path for `seconds`. The demo
+        board toggles this instead of driving load from the browser (background
+        tabs throttle timers to ~1/min, which starves breach detection)."""
+        import threading
+        import time as _t
+        body = await request.json()
+        model = body.get("model", "qwen3-8b")
+        rps = min(float(body.get("rps", 1.5)), 5.0)
+        seconds = min(float(body.get("seconds", 90)), 300.0)
+        if model not in state.registry:
+            return _error(404, "unknown_model", model)
+
+        def loop():
+            n = 0
+            t_end = _t.monotonic() + seconds
+            while _t.monotonic() < t_end:
+                n += 1
+                try:
+                    gen, _c, _h, _s = state.proxy_chat_stream(
+                        model, {"model": model, "max_tokens": 8,
+                                "stream": True,
+                                "messages": [{"role": "user",
+                                              "content": f"demo load {n}"}]},
+                        {})
+                    for _ in gen:
+                        pass
+                except Exception:  # noqa: BLE001 — mid-quarantine is the demo
+                    pass
+                _t.sleep(1.0 / rps)
+
+        threading.Thread(target=loop, daemon=True, name="dev-load").start()
+        state.events.emit("config_change", target="dev-load",
+                          model=model, rps=rps, seconds=seconds)
+        return {"status": "running", "model": model, "rps": rps,
+                "seconds": seconds}
+
+    @app.post("/v1/assist")
+    async def assist(request: Request):
+        """Docs-grounded deploy assistant; reasoning served by a catalog
+        model through this router (see router_app/assist.py)."""
+        from fastapi.concurrency import run_in_threadpool
+        from router_app import assist as assist_mod
+        body = await request.json()
+        question = body.get("question")
+        if not question:
+            return _error(400, "missing_question", "body needs 'question'")
+        try:
+            result = await run_in_threadpool(
+                assist_mod.run, state, question,
+                body.get("model", "glm-4.7"),
+                body.get("model_id"), body.get("deployment_id"))
+        except (UnknownModel, NoHealthyBackend) as exc:
+            return _error(503, "assist_unavailable", str(exc))
+        state.events.emit("assist", question=question[:80],
+                          replica=result["served_by"]["replica"])
+        return result
+
+    @app.get("/v1/learning/episodes")
+    def learning_episodes(limit: int = 30):
+        """Recorded agent episodes (learning/README.md schema), newest
+        first — live recordings then backfill."""
+        import json as _json
+        from router_app.learning import episodes_path
+        out = []
+        live = episodes_path()
+        files = [live, _repo_root / "learning" / "episodes" / "backfill.jsonl"]
+        for f in files:
+            if f is None or not f.exists():
+                continue
+            lines = f.read_text().splitlines()
+            for line in reversed(lines):
+                try:
+                    out.append(_json.loads(line))
+                except ValueError:
+                    continue
+                if len(out) >= limit:
+                    return out
+        return out
+
     # ---- devboard data surface (contracts/devboard.openapi.yaml) ----------
     # Shapes come from router_app/devboard.py builders over live state; the
     # board renders ONLY what the router measured (SLO-AUDITOR provenance).
