@@ -1,5 +1,17 @@
 # console-live — read-only Baseten fleet observer
 
+## Ship it
+
+One click (imports this repo; set **Root Directory = `console-live`** when
+prompted; you auth once in your own browser):
+
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/vsiwach/baseten-mvp&root-directory=console-live&project-name=baseten-reliability-console)
+
+Or from a terminal: `cd console-live && vercel login && vercel --prod`
+
+Run locally (no account, one command): `node console-live/server.js`
+→ open http://localhost:4173 and paste your key.
+
 A single-page console that connects to a real Baseten workspace with your API
 key and shows, per production deployment: status, replicas, scale-to-zero
 state, end-to-end latency percentiles vs voice (500ms) / interactive (800ms)
