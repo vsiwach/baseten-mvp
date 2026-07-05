@@ -1,4 +1,4 @@
-# console-live — read-only Baseten fleet observer
+# console-live — Baseten fleet console (read-only by default, opt-in writes)
 
 **Live:** https://baseten-reliability-console.vercel.app — paste your Baseten
 API key (it stays in your browser's memory; the proxy forwards it per-request
@@ -25,14 +25,30 @@ it came from.
 
 ## Observe vs control boundary
 
-This console is **observe-only**. It calls three GET endpoints of the Baseten
-management API (`/v1/models`, `.../deployments`, `.../metrics`) and never
-mutates anything. Recommendations are advisory text. Autonomous mitigation
-(quarantine, spill, self-heal) requires a router in the request path — that
-half lives in the recorded control-plane demo
-([site-console/](../site-console/), live MTTR 8.8–9.2 s drills replayed from
-real traces), not here. How the two layers relate to Baseten's own MCP+skill
-toolkit: [docs/COMPETITIVE_LANDSCAPE.md](../docs/COMPETITIVE_LANDSCAPE.md).
+This console is **observe-only by default**. It calls three GET endpoints of
+the Baseten management API (`/v1/models`, `.../deployments`, `.../metrics`).
+Recommendations are advisory text. Autonomous mitigation (quarantine, spill,
+self-heal) requires a router in the request path — that half lives in the
+recorded control-plane demo ([site-console/](../site-console/), live MTTR
+8.8–9.2 s drills replayed from real traces), not here. How the two layers
+relate to Baseten's own MCP+skill toolkit:
+[docs/COMPETITIVE_LANDSCAPE.md](../docs/COMPETITIVE_LANDSCAPE.md).
+
+### Write actions (opt-in)
+
+"Enable write actions" in the header (off by default, in-memory only) reveals
+manage controls: activate / deactivate, autoscaling min/max, and promote to
+production for non-production deployments. Every mutation goes through one
+confirm modal that displays the **exact** upstream call (method + path +
+payload) plus an honest consequence line (billing, cold start, dropped
+in-flight requests, rollback path). The write proxy (`api/baseten-write.js`,
+POST-only, four allowlisted actions) recomputes that mutation string
+server-side and rejects with 428 unless the request's `x-confirm-mutation`
+header matches it exactly — a request that skipped the dialog cannot claim to
+be confirmed. One mutation at a time; after acceptance the console polls the
+deployment every 10 s (max 10 min) until it reaches the expected state, then
+re-renders that model's card. These are deployment-level operations — there is
+still no traffic-level drain or self-heal without a router in the path.
 
 ## Run locally
 

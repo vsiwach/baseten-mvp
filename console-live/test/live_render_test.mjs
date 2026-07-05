@@ -25,6 +25,7 @@ class FakeEl {
     if (!this.subs.has(sel)) this.subs.set(sel, new FakeEl());
     return this.subs.get(sel);
   }
+  querySelectorAll() { return []; }
   appendChild(c) { this.children.push(c); return c; }
   addEventListener(type, fn) { this.listeners[type] = fn; }
   focus() {}
@@ -136,7 +137,14 @@ const all6h = cards6h.map((c) => c.head + ' ' + c.body).join('\n');
 const qwen = cards6h.find((c) => c.head.includes('qwen3-8b-vllm'));
 
 check('qwen3-8b-vllm card exists', !!qwen);
-check('no card for non-production deployment q86yjdy', !all6h.includes('q86yjdy'));
+// v2 renders non-production deployments as compact rows under their model's
+// production card ("other deployments"), so q86yjdy may appear there — but it
+// must never get a standalone card (i.e. appear before that section's label).
+const qCard = cards6h.find((c) => c.head.includes('q86yjdy'));
+const q86AsProd = qCard
+  ? qCard.head.split('other deployments')[0].includes('q86yjdy') : false;
+check('q86yjdy is never a standalone/production card (other-deployments row ok)', !q86AsProd,
+  qCard ? 'appears in a card' + (q86AsProd ? ' HEAD (bad)' : "'s other-deployments row") : 'not rendered');
 if (qwen) {
   check('instance contains T4', /T4/.test(qwen.head), qwen.head.match(/\S*T4\S*/)?.[0] || 'not found');
   check('status INACTIVE', qwen.head.includes('INACTIVE'));

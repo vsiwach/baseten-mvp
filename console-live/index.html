@@ -91,6 +91,35 @@
   .foot div { color: var(--text-3); font-size: 10px; font-family: var(--font-mono); }
 
   .empty { text-align: center; color: var(--text-3); padding: 60px 0; font-size: var(--fs-small); }
+
+  /* ---- write mode: manage controls hidden unless #cards has .writes-on ---- */
+  .w-only { display: none; }
+  .writes-on .w-only { display: block; }
+  .manage { gap: 6px; align-items: center; flex-wrap: wrap; }
+  .writes-on .manage.w-only { display: flex; }
+  .manage input {
+    width: 58px; background: var(--panel-2); border: 1px solid var(--stroke-hi);
+    border-radius: var(--r-sm); color: var(--text); padding: 4px 6px;
+    font-size: var(--fs-small);
+  }
+  .odeps { border-top: 1px solid var(--stroke); padding-top: 8px;
+           display: flex; flex-direction: column; gap: 6px; }
+  .odep { display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+          font-size: var(--fs-small); color: var(--text-2); }
+  .pollnote { color: var(--accent); font-size: var(--fs-micro); }
+  .modal { position: fixed; inset: 0; z-index: 50; background: rgba(0,0,0,.55);
+           display: flex; align-items: center; justify-content: center; }
+  .modal[hidden] { display: none; }
+  .modal-box { max-width: 560px; width: 92%; padding: 20px;
+               display: flex; flex-direction: column; gap: 12px; }
+  .modal-box h3 { font-size: var(--fs-h1); }
+  .modal-box code {
+    display: block; background: var(--panel-2); border: 1px solid var(--stroke-hi);
+    border-radius: var(--r-sm); padding: 10px; font-size: var(--fs-small);
+    word-break: break-all;
+  }
+  .modal-box .consequence { color: var(--text-2); font-size: var(--fs-small); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
 </style>
 </head>
 <body>
@@ -98,7 +127,7 @@
   <header class="top">
     <div class="top-row">
       <h1>Baseten Live Console</h1>
-      <span class="chip chip-accent"><span class="dot"></span>read-only</span>
+      <span class="chip chip-accent" id="modeChip"><span class="dot"></span>read-only</span>
       <span class="spacer"></span>
       <div class="controls" id="controls" hidden>
         <span class="label">window</span>
@@ -106,14 +135,16 @@
           <option value="1" selected>last 1h</option>
           <option value="6">last 6h</option>
           <option value="24">last 24h</option>
+          <option value="168">last 7d</option>
         </select>
         <button class="btn" id="refreshBtn">Refresh</button>
         <label class="toggle"><input type="checkbox" id="autoChk"> auto-refresh 60s</label>
+        <label class="toggle"><input type="checkbox" id="writesChk"> Enable write actions</label>
         <button class="btn" id="disconnectBtn">Disconnect</button>
         <span class="status num" id="statusTxt"></span>
       </div>
     </div>
-    <div class="banner"><strong>Read-only observer</strong> — recommendations are advisory.
+    <div class="banner" id="modeBanner"><strong>Read-only observer</strong> — recommendations are advisory.
       Autonomous mitigation (quarantine/spill/self-heal) requires a router in the request path —
       see the <a href="https://github.com/vsiwach/baseten-mvp/tree/main/site-console"
       target="_blank" rel="noopener">recorded control-plane demo</a> (live MTTR 8.8–9.2&nbsp;s
@@ -137,6 +168,19 @@
   <main id="cards" class="grid"></main>
 </div>
 
+<div class="modal" id="modal" hidden>
+  <div class="panel modal-box">
+    <h3>Confirm mutation</h3>
+    <code class="mono" id="modalMutation"></code>
+    <p class="consequence" id="modalConsequence"></p>
+    <div class="inline-err" id="modalError" hidden></div>
+    <div class="modal-actions">
+      <button class="btn" id="modalCancel">Cancel</button>
+      <button class="btn danger" id="modalConfirm">Confirm</button>
+    </div>
+  </div>
+</div>
+
 <script>
 'use strict';
 (() => {
@@ -146,10 +190,17 @@
   let autoTimer = null;
   let pausedUntil = 0;
   let loading = false;
+  let writesEnabled = false;      // memory only, off by default
+  let modalCtx = null;            // mutation staged in the confirm modal
+  let pendingMutation = null;     // accepted mutation being polled (max one)
+  let pollTimer = null;
+  let fleet = [];                 // [{ model, prod, others, el }]
 
   const BUDGET_VOICE_MS = 500;
   const BUDGET_INTERACTIVE_MS = 800;
+  const MAX_WINDOW_HOURS = 168;   // 7d, the API max
   const $ = (id) => document.getElementById(id);
+  const fmtWin = () => windowHours === 168 ? '7d' : `${windowHours}h`;
 
   // ---- proxy client ----
   class ApiError extends Error {
@@ -305,7 +356,7 @@
       return `Holds the interactive budget (${BUDGET_INTERACTIVE_MS}ms) but misses voice (${BUDGET_VOICE_MS}ms) — p99 is ${f(c.p99)}.`;
     }
     if (c.n === 0) {
-      return `No requests observed in the last ${windowHours}h — widen the window or send traffic to get a signal.`;
+      return `No requests observed in the last ${fmtWin()} — widen the window or send traffic to get a signal.`;
     }
     if (c.verdict === 'GREEN' && c.minReplica > 0 && c.ratePerMin < 1) {
       return `Consider scale-to-zero — traffic is ${c.ratePerMin.toFixed(2)} req/min with min_replica=${c.minReplica} held warm.`;
@@ -336,16 +387,221 @@
     el.hidden = !msg;
   }
 
+  // ---- write actions ----
+  // ONE builder for the mutation string: the confirm modal displays it and the
+  // request echoes it in x-confirm-mutation; the server recomputes the same
+  // string and rejects (428) on any mismatch.
+  const ACTION_SPEC = {
+    activate: { method: 'POST', suffix: 'activate' },
+    deactivate: { method: 'POST', suffix: 'deactivate' },
+    promote: { method: 'POST', suffix: 'promote' },
+    autoscaling: { method: 'PATCH', suffix: 'autoscaling_settings' },
+  };
+  function mutationString(action, modelId, depId, payload) {
+    const spec = ACTION_SPEC[action];
+    return `${spec.method} /models/${modelId}/deployments/${depId}/${spec.suffix}` +
+      (action === 'autoscaling' ? ` ${JSON.stringify(payload)}` : '');
+  }
+
+  function consequenceLine(action, ds, payload) {
+    if (action === 'activate') {
+      return 'Starts billing while replicas are active (T4 ≈ $0.90/hr each). Cold start typically 2–6 min before READY.';
+    }
+    if (action === 'deactivate') {
+      return 'Scales to zero and stops billing. In-flight requests can be dropped — this console has no traffic-level drain (that needs a router in the request path; see the control-plane demo).';
+    }
+    if (action === 'promote') {
+      return 'Migration: shifts the production environment pointer to this deployment. Rollback = promote the previous deployment back.';
+    }
+    const old = { min_replica: Number(ds.min), max_replica: Number(ds.max) };
+    const changes = Object.entries(payload).map(([k, v]) => `${k} ${old[k]}→${v}`).join(', ');
+    return `Applies ${changes}; max_replica>replicas running starts nothing by itself, min_replica>0 keeps replicas warm and billing.`;
+  }
+
+  function openModal(action, modelId, depId, payload, ds) {
+    modalCtx = { action, modelId, depId, payload,
+      mutation: mutationString(action, modelId, depId, payload) };
+    $('modalMutation').textContent = modalCtx.mutation;
+    $('modalConsequence').textContent = consequenceLine(action, ds, payload);
+    $('modalError').textContent = '';
+    $('modalError').hidden = true;
+    $('modal').hidden = false;
+  }
+
+  function closeModal() {
+    modalCtx = null;
+    $('modal').hidden = true;
+  }
+
+  async function confirmMutation() {
+    const m = modalCtx;
+    if (!m || !apiKey || pendingMutation) return;
+    const body = { action: m.action, model_id: m.modelId, deployment_id: m.depId };
+    if (m.action === 'autoscaling') body.payload = m.payload;
+    let res, text;
+    try {
+      res = await fetch('/api/baseten-write', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-baseten-api-key': apiKey,
+          'x-confirm-mutation': m.mutation,
+        },
+        body: JSON.stringify(body),
+      });
+      text = await res.text();
+    } catch (err) {
+      $('modalError').textContent = 'request failed: ' + err.message;
+      $('modalError').hidden = false;
+      return;
+    }
+    if (!res.ok) {
+      $('modalError').textContent = `HTTP ${res.status}: ${text}`; // upstream verbatim
+      $('modalError').hidden = false;
+      return;
+    }
+    closeModal();
+    startPolling(m);
+  }
+
+  function noteFor(m, msg) {
+    const entry = fleet.find((f) => f.model.id === m.modelId);
+    if (entry) entry.el.querySelector(`.note-${m.depId}`).textContent = msg;
+  }
+
+  function setManageDisabled(disabled) {
+    for (const b of $('cards').querySelectorAll('button[data-action]')) b.disabled = disabled;
+  }
+
+  function reachedTarget(m, dep) {
+    if (m.action === 'activate') return dep.status === 'ACTIVE';
+    if (m.action === 'deactivate') return dep.status === 'INACTIVE';
+    if (m.action === 'promote') return dep.is_production === true;
+    const auto = dep.autoscaling_settings || {};
+    return Object.entries(m.payload).every(([k, v]) => auto[k] === v);
+  }
+
+  function endPolling(m, msg) {
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+    pendingMutation = null;
+    setManageDisabled(false);
+    if (msg) noteFor(m, msg);
+  }
+
+  function startPolling(m) {
+    pendingMutation = m;               // one mutation at a time
+    setManageDisabled(true);
+    noteFor(m, 'accepted — polling status…');
+    const deadline = Date.now() + 10 * 60 * 1000;
+    const tick = async () => {
+      try {
+        const depsRes = await api(`models/${m.modelId}/deployments`);
+        const dep = (depsRes.deployments || []).find((d) => d.id === m.depId);
+        if (dep && reachedTarget(m, dep)) {
+          endPolling(m);
+          return refreshModelCard(m.modelId, depsRes.deployments || []);
+        }
+      } catch (err) {
+        if (err.status === 401) {
+          endPolling(m);
+          return disconnect('Key rejected by the Baseten API — paste a valid key.');
+        }
+        // transient (429/network) — keep polling until the deadline
+      }
+      if (Date.now() > deadline) {
+        return endPolling(m, 'poll timed out after 10 min — Refresh manually');
+      }
+      pollTimer = setTimeout(tick, 10000);
+    };
+    pollTimer = setTimeout(tick, 10000);
+  }
+
+  async function refreshModelCard(modelId, deployments) {
+    const entry = fleet.find((f) => f.model.id === modelId);
+    if (!entry) return;
+    const prod = deployments.find((d) => d.is_production === true) || entry.prod;
+    entry.prod = prod;
+    entry.others = deployments.filter((d) => d.id !== prod.id);
+    entry.el.innerHTML = cardMarkup(entry.model, entry.prod, entry.others);
+    await loadCard(entry.el, entry.model, entry.prod);
+  }
+
+  function onManageClick(e) {
+    const btn = e.target.closest && e.target.closest('button[data-action]');
+    if (!btn || !writesEnabled || pendingMutation || btn.disabled) return;
+    const { action, model: modelId, dep: depId } = btn.dataset;
+    let payload;
+    if (action === 'autoscaling') {
+      const box = btn.closest('.manage');
+      payload = {};
+      const minV = Number(box.querySelector('.min-inp').value);
+      const maxV = Number(box.querySelector('.max-inp').value);
+      if (Number.isFinite(minV) && minV !== Number(btn.dataset.min)) payload.min_replica = minV;
+      if (Number.isFinite(maxV) && maxV !== Number(btn.dataset.max)) payload.max_replica = maxV;
+      if (!Object.keys(payload).length) return; // nothing changed
+    }
+    openModal(action, modelId, depId, payload, btn.dataset);
+  }
+
+  function applyWriteMode() {
+    const chip = $('modeChip');
+    $('cards').className = 'grid' + (writesEnabled ? ' writes-on' : '');
+    if (writesEnabled) {
+      chip.className = 'chip chip-warn';
+      chip.innerHTML = '<span class="dot"></span>WRITES ENABLED — actions mutate your workspace';
+      $('modeBanner').innerHTML = '<strong>Write actions enabled</strong> — every mutation requires ' +
+        'an explicit confirm showing the exact API call. Traffic-level drain/self-heal still ' +
+        'requires a router in the path (see the recorded control-plane demo).';
+    } else {
+      chip.className = 'chip chip-accent';
+      chip.innerHTML = '<span class="dot"></span>read-only';
+      $('modeBanner').innerHTML = READ_BANNER_HTML;
+    }
+  }
+
   // ---- rendering ----
-  function cardShell(model, dep) {
+  const WRITE_FOOT_LINE =
+    '<div class="w-only">writes · POST /api/baseten-write → api.baseten.co (your key, this browser only)</div>';
+
+  function manageMarkup(model, dep, { promotable }) {
+    if (/FAILED/.test(dep.status)) {
+      return `<div class="manage w-only"><span class="flag">fix the failed build first</span></div>`;
+    }
+    const auto = dep.autoscaling_settings || {};
+    const min = auto.min_replica != null ? Number(auto.min_replica) : 0;
+    const max = auto.max_replica != null ? Number(auto.max_replica) : 1;
+    const ref = `data-model="${esc(model.id)}" data-dep="${esc(dep.id)}"`;
+    const power =
+      dep.status === 'INACTIVE' ? `<button class="btn" data-action="activate" ${ref}>Activate</button>` :
+      dep.status === 'ACTIVE' ? `<button class="btn danger" data-action="deactivate" ${ref}>Deactivate</button>` : '';
+    const promote = promotable && dep.is_production !== true
+      ? `<button class="btn" data-action="promote" ${ref}>Promote to production</button>` : '';
+    return `<div class="manage w-only">
+        ${power}
+        <span class="label">min</span><input class="min-inp num" type="number" min="0" value="${min}">
+        <span class="label">max</span><input class="max-inp num" type="number" min="0" value="${max}">
+        <button class="btn" data-action="autoscaling" ${ref} data-min="${min}" data-max="${max}">Apply autoscaling</button>
+        ${promote}
+      </div>`;
+  }
+
+  function odepRow(model, dep) {
+    return `<div class="odep">
+        <span class="mono">${esc(dep.name || '')} · ${esc(dep.id)}</span>
+        <span class="chip ${statusChip(dep.status)}">${esc(dep.status || '?')}</span>
+        <span class="num">${dep.active_replica_count != null ? Number(dep.active_replica_count) : '—'} active</span>
+        <span class="pollnote note-${esc(dep.id)}"></span>
+        ${manageMarkup(model, dep, { promotable: true })}
+      </div>`;
+  }
+
+  function cardMarkup(model, dep, others) {
     const st0 = dep.autoscaling_settings || {};
     const stz = st0.min_replica === 0
       ? `<span class="chip chip-warn">scale-to-zero enabled</span>` +
         (dep.active_replica_count === 0 ? ` <span class="chip chip-warn">scaled to zero now</span>` : '')
       : '';
-    const el = document.createElement('article');
-    el.className = 'panel card';
-    el.innerHTML = `
+    return `
       <div class="head">
         <span class="name">${esc(model.name || model.id)}</span>
         <span class="chip ${statusChip(dep.status)}"><span class="dot"></span>${esc(dep.status || '?')}</span>
@@ -358,29 +614,34 @@
         <span class="sep">·</span>
         <span class="num">replicas ${st0.min_replica != null ? Number(st0.min_replica) : '—'}–${st0.max_replica != null ? Number(st0.max_replica) : '—'}</span>
         ${stz}
+        <span class="pollnote note-${esc(dep.id)}"></span>
       </div>
+      ${manageMarkup(model, dep, { promotable: false })}
+      ${others.length ? `<div class="odeps"><span class="label">other deployments</span>
+        ${others.map((d) => odepRow(model, d)).join('')}</div>` : ''}
       <div class="body"><span class="notraffic pulsing">loading metrics…</span></div>
       <div class="foot">
         <div>deployment · GET /v1/models/${esc(model.id)}/deployments</div>
+        ${WRITE_FOOT_LINE}
       </div>`;
-    return el;
   }
 
   function renderMetrics(el, model, dep, summary, series) {
     const body = el.querySelector('.body');
     const foot = el.querySelector('.foot');
     const src = `GET /v1/models/${esc(model.id)}/deployments/${esc(dep.id)}/metrics`;
-    const win = `last ${windowHours}h`;
+    const win = `last ${fmtWin()}`;
     foot.innerHTML = `
       <div>deployment · GET /v1/models/${esc(model.id)}/deployments</div>
       <div>latency/replicas · ${src} · SUMMARY · ${win} · baseten_end_to_end_response_time_seconds (full response incl. token generation, not TTFT)</div>
-      <div>traffic · ${src} · SERIES · ${win} · baseten_inference_requests_total</div>`;
+      <div>traffic · ${src} · SERIES · ${win} · baseten_inference_requests_total</div>
+      ${WRITE_FOOT_LINE}`;
 
     const lat = summary.latency;
     const n = series.total;
     const noTraffic = n === 0 || summary.latencyAllNull || Object.keys(lat).length === 0;
     if (noTraffic && n === 0) {
-      body.innerHTML = `<span class="notraffic">No requests in this window (metrics can lag 1–3 min).
+      body.innerHTML = `<span class="notraffic">No requests in this window (metrics can lag 1–3 min)${windowHours < MAX_WINDOW_HOURS ? ' — try last 7d' : ''}.
         Replicas avg: <span class="num">${summary.replicasAvg == null ? '—' : summary.replicasAvg.toFixed(1)}</span></span>
         <div class="reco"><span class="label">recommendation</span>${esc(recommend({
           status: dep.status, n: 0, pct5xx: 0, verdict: null, flagged: false,
@@ -461,20 +722,22 @@
       $('empty').hidden = models.length > 0;
       const cards = $('cards');
       cards.innerHTML = '';
-      const pairs = [];
+      const next = [];
       await mapLimit(models, 4, async (model) => {
         const depsRes = await api(`models/${model.id}/deployments`);
-        for (const dep of depsRes.deployments || []) {
-          if (dep.is_production === true) pairs.push({ model, dep });
-        }
+        const deps = depsRes.deployments || [];
+        const prod = deps.find((d) => d.is_production === true);
+        if (prod) next.push({ model, prod, others: deps.filter((d) => d.id !== prod.id) });
       });
-      const shells = pairs.map(({ model, dep }) => {
-        const el = cardShell(model, dep);
-        cards.appendChild(el);
-        return el;
-      });
-      await mapLimit(pairs, 4, ({ model, dep }, i) => loadCard(shells[i], model, dep));
-      if (models.length && !pairs.length) {
+      fleet = next;
+      for (const f of fleet) {
+        f.el = document.createElement('article');
+        f.el.className = 'panel card';
+        f.el.innerHTML = cardMarkup(f.model, f.prod, f.others);
+        cards.appendChild(f.el);
+      }
+      await mapLimit(fleet, 4, (f) => loadCard(f.el, f.model, f.prod));
+      if (models.length && !fleet.length) {
         $('empty').hidden = false;
         $('empty').textContent = 'Models found, but none has a production deployment.';
       }
@@ -491,6 +754,12 @@
   function disconnect(errMsg) {
     apiKey = null; // wipe
     stopAuto();
+    if (pendingMutation) endPolling(pendingMutation);
+    closeModal();
+    writesEnabled = false;
+    $('writesChk').checked = false;
+    applyWriteMode();
+    fleet = [];
     $('autoChk').checked = false;
     $('controls').hidden = true;
     $('cards').innerHTML = '';
@@ -527,6 +796,14 @@
     stopAuto();
     if (e.target.checked) autoTimer = setInterval(refresh, 60000);
   });
+  const READ_BANNER_HTML = $('modeBanner').innerHTML;
+  $('writesChk').addEventListener('change', (e) => {
+    writesEnabled = !!e.target.checked;
+    applyWriteMode();
+  });
+  $('cards').addEventListener('click', onManageClick);
+  $('modalConfirm').addEventListener('click', confirmMutation);
+  $('modalCancel').addEventListener('click', closeModal);
 })();
 </script>
 </body>

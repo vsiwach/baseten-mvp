@@ -7,6 +7,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const proxy = require('./api/baseten');
+const writeProxy = require('./api/baseten-write');
 
 const PORT = Number(process.env.PORT) || 4173;
 const ROOT = __dirname;
@@ -19,6 +20,16 @@ const TYPES = {
 
 http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  if (url.pathname === '/api/baseten-write') {
+    // Vercel delivers parsed JSON bodies; emulate that for the handler.
+    let raw = '';
+    req.on('data', (c) => { raw += c; if (raw.length > 65536) req.destroy(); });
+    req.on('end', () => {
+      req.body = raw;
+      writeProxy(req, res);
+    });
+    return;
+  }
   if (url.pathname === '/api/baseten' || url.pathname.startsWith('/api/baseten/')) {
     req.query = {};
     for (const name of new Set(url.searchParams.keys())) {
