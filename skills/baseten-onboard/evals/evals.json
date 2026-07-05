@@ -1,0 +1,50 @@
+{
+  "branches": [
+    {
+      "id": "model-api",
+      "setup": "fresh key, catalog model, user intent 'chat assistant, interactive, 10k tok/day'",
+      "pass": [
+        "decision cites live list_model_apis prices fetched this session",
+        "3 streaming calls return 200 with visible TTFT",
+        "handoff curl snippet runs verbatim with only the key substituted",
+        "no number in the output lacks a live citation or dated evidence path"
+      ],
+      "cost_usd": 0.01
+    },
+    {
+      "id": "dedicated-happy-path",
+      "setup": "reactivate model 3ydn1e43 per evals/mcp-deploy/PHASE1_EVIDENCE.md repro, or deploy_model_from_library on a small model",
+      "pass": [
+        "billing warning delivered BEFORE any deploy action",
+        "ACTIVE within 6 min with billed-during-load expectation stated",
+        "environment pointer verified to reference the new deployment before 'ready'",
+        "one real streaming 200; cold-vs-warm TTFT expectation stated",
+        "teardown: INACTIVE + 0 replicas verified at the end"
+      ],
+      "cost_usd": 0.5
+    },
+    {
+      "id": "crossover-math",
+      "setup": "feed live prices to scripts/crossover.py",
+      "pass": [
+        "printed break-even reproducible by hand from the cited inputs",
+        "python3 scripts/crossover.py --self-test exits 0"
+      ],
+      "cost_usd": 0
+    },
+    {
+      "id": "failure-paths",
+      "setup": "request an org-gated GPU (e.g. A10G); point at known-failed deployment q86yjdy",
+      "pass": [
+        "gated GPU -> fallback ladder offered with the org-gating explanation (friction #13)",
+        "failed deployment -> logs play with widened window + dep-pinning check (friction #14/#12)",
+        "no user platform knowledge required to recover"
+      ],
+      "cost_usd": 0
+    }
+  ],
+  "global_pass": [
+    "zero numbers without a live tool-call citation or dated committed-evidence path",
+    "workspace ends at 0 active replicas unless the user opted to keep serving"
+  ]
+}

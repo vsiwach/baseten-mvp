@@ -712,6 +712,24 @@
     }
   }
 
+  // ?model=<model_id> deep link (used by the onboarding handoff): focus the
+  // new deployment's card on first render, then stop (later refreshes don't
+  // re-scroll).
+  let deepLinkModel = (typeof location !== 'undefined' && location.search)
+    ? new URLSearchParams(location.search).get('model') : null;
+  function focusDeepLink() {
+    if (!deepLinkModel) return;
+    const el = $('cards').children instanceof Array
+      ? null // stub-DOM harness: skip
+      : document.querySelector(`[data-model-id="${CSS.escape(deepLinkModel)}"]`);
+    deepLinkModel = null;
+    if (!el) return;
+    el.style.outline = '2px solid var(--accent)';
+    el.style.outlineOffset = '2px';
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => { el.style.outline = ''; el.style.outlineOffset = ''; }, 6000);
+  }
+
   async function refresh() {
     if (!apiKey || loading || Date.now() < pausedUntil) return;
     loading = true;
@@ -733,10 +751,12 @@
       for (const f of fleet) {
         f.el = document.createElement('article');
         f.el.className = 'panel card';
+        f.el.dataset.modelId = f.model.id;
         f.el.innerHTML = cardMarkup(f.model, f.prod, f.others);
         cards.appendChild(f.el);
       }
       await mapLimit(fleet, 4, (f) => loadCard(f.el, f.model, f.prod));
+      focusDeepLink();
       if (models.length && !fleet.length) {
         $('empty').hidden = false;
         $('empty').textContent = 'Models found, but none has a production deployment.';
