@@ -91,6 +91,31 @@
   .foot div { color: var(--text-3); font-size: 10px; font-family: var(--font-mono); }
 
   .empty { text-align: center; color: var(--text-3); padding: 60px 0; font-size: var(--fs-small); }
+  .empty a { color: var(--accent); }
+  .onboard-link { text-decoration: none; }
+
+  /* ---- fleet planner (collapsible, above the cards grid) ---- */
+  .planner { margin-top: 16px; padding: 0; }
+  .planner-head {
+    display: flex; width: 100%; align-items: center; gap: 10px;
+    background: none; border: none; cursor: pointer; padding: 12px 16px;
+    color: var(--text); text-align: left; font-family: var(--font-ui);
+  }
+  .planner-head:hover .label { color: var(--accent); }
+  .planner-head .hint { color: var(--text-3); font-size: var(--fs-micro); }
+  .planner-body { padding: 0 16px 16px; overflow-x: auto; }
+  .ptable { width: 100%; border-collapse: collapse; font-size: var(--fs-small); }
+  .ptable th {
+    text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--stroke-hi);
+    font-size: var(--fs-micro); font-weight: 600; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--text-3);
+  }
+  .ptable td { padding: 8px; border-bottom: 1px solid var(--stroke); vertical-align: top; }
+  .pdim { color: var(--text-3); font-size: var(--fs-micro); }
+  .popt { margin-bottom: 8px; }
+  .popt .platency { color: var(--text-2); font-size: var(--fs-micro); margin-left: 6px; }
+  .pevidence { color: var(--text-3); font-size: 10px; font-family: var(--font-mono); margin-top: 2px; }
+  .preco { color: var(--text-2); font-size: var(--fs-small); max-width: 280px; }
 
   /* ---- write mode: manage controls hidden unless #cards has .writes-on ---- */
   .w-only { display: none; }
@@ -129,6 +154,7 @@
       <h1>Baseten Live Console</h1>
       <span class="chip chip-accent" id="modeChip"><span class="dot"></span>read-only</span>
       <span class="spacer"></span>
+      <a class="btn onboard-link" href="onboard.html">Onboard a model →</a>
       <div class="controls" id="controls" hidden>
         <span class="label">window</span>
         <select id="windowSel">
@@ -164,7 +190,16 @@
     <div class="err" id="connectErr" hidden></div>
   </section>
 
-  <div id="empty" class="empty" hidden>No models found in this workspace.</div>
+  <div id="empty" class="empty" hidden>No models found in this workspace.
+    <a href="onboard.html">New to Baseten? Find your model →</a></div>
+  <section id="planner" class="panel planner" hidden>
+    <button class="planner-head" id="plannerToggle">
+      <span class="num" id="plannerCaret">▸</span>
+      <span class="label">Fleet planner</span>
+      <span class="hint">measured $/mo + latency per placement · contract: placement-recommendation/v1 · advisory only</span>
+    </button>
+    <div class="planner-body" id="plannerBody" hidden></div>
+  </section>
   <main id="cards" class="grid"></main>
 </div>
 
@@ -194,7 +229,11 @@
   let modalCtx = null;            // mutation staged in the confirm modal
   let pendingMutation = null;     // accepted mutation being polled (max one)
   let pollTimer = null;
-  let fleet = [];                 // [{ model, prod, others, el }]
+  let fleet = [];                 // [{ model, prod, others, el, metrics }]
+  let plannerOpen = false;        // fleet planner collapsed by default
+  let refreshGen = 0;             // bumps per refresh; planner prices fetched once per gen
+  let plannerPricesCache = null;  // { gen, data, fetchedAt }
+  let plannerStatics = null;      // { snapshot, baselines } (static files, fetched once)
 
   const BUDGET_VOICE_MS = 500;
   const BUDGET_INTERACTIVE_MS = 800;
@@ -523,7 +562,7 @@
     entry.prod = prod;
     entry.others = deployments.filter((d) => d.id !== prod.id);
     entry.el.innerHTML = cardMarkup(entry.model, entry.prod, entry.others);
-    await loadCard(entry.el, entry.model, entry.prod);
+    await loadCard(entry);
   }
 
   function onManageClick(e) {
@@ -696,7 +735,8 @@
   }
 
   // ---- flow ----
-  async function loadCard(el, model, dep) {
+  async function loadCard(entry) {
+    const { el, model, prod: dep } = entry;
     try {
       const params = metricsParams();
       const [summary, series] = await Promise.all([
@@ -704,11 +744,178 @@
         api(`models/${model.id}/deployments/${dep.id}/metrics`,
           { mode: 'SERIES', metrics: 'baseten_inference_requests_total', ...params }),
       ]);
-      renderMetrics(el, model, dep, parseSummary(summary), parseSeries(series));
+      const s = parseSummary(summary), sr = parseSeries(series);
+      entry.metrics = { summary: s, series: sr };   // reused by the fleet planner
+      renderMetrics(el, model, dep, s, sr);
     } catch (err) {
       if (err.status === 401) throw err;
       el.querySelector('.body').innerHTML =
         `<span class="inline-err">metrics unavailable: ${esc(err.message)}</span>`;
+    }
+  }
+
+  // ---- fleet planner ----
+  // buildPlannerModel emits, and renderPlanner consumes, the
+  // placement-recommendation/v1 contract:
+  //   { schema, generated_at, source:{kind,...}, workloads:[{ model_id,
+  //     deployment_id, observed{...}, slo{...}, options:[{ placement,
+  //     usd_per_month, latency_expected_ms{...}, evidence:[...] }],
+  //     recommendation:{ placement, confidence, rationale, status } }] }
+  // Today the artifact is kind "measured-comparison" with recommendation
+  // status "pending-rl-artifact"; a future RL policy artifact with the same
+  // schema renders with zero rework (proved by test fixtures).
+  const PLANNER_HOURS = 730;               // warm hours/month assumption
+  const PLANNER_REPLICAS = 1;              // active-replica assumption
+  const PLANNER_TOK = { prompt: 750, completion: 250 }; // tokens/request assumption (ratio 3.0)
+
+  function cheapestSnapshotFit(snapshot) {
+    let best = null;
+    for (const m of snapshot.models || []) {
+      const blended = (3.0 * m.usd_per_1m_prompt + m.usd_per_1m_completion) / 4.0;
+      if (!best || blended < best.blended) {
+        best = { slug: m.slug, in: m.usd_per_1m_prompt, out: m.usd_per_1m_completion, blended };
+      }
+    }
+    return best;
+  }
+
+  // deployment.instance_type_name prefix-matched against instance_type.name
+  function matchInstancePrice(prices, instName) {
+    if (!instName) return null;
+    for (const e of prices.instance_types || []) {
+      const n = e.instance_type && e.instance_type.name;
+      if (n && (instName === n || instName.startsWith(n) || n.startsWith(instName))) {
+        return { name: n, usdPerMin: Number(e.price) };
+      }
+    }
+    return null;
+  }
+
+  function buildPlannerModel(fleetArr, prices, snapshot, baselines) {
+    const cheapest = cheapestSnapshotFit(snapshot);
+    const fmtBase = (b) =>
+      `${b.metric} ${Array.isArray(b.value) ? b.value.join('–') : b.value}${b.unit} (${b.source}, ${b.date})`;
+    const baseEvidence = baselines.map(fmtBase);
+    const warm = baselines.find((b) => b.metric === 'warm_ttft_ms');
+    const cold = baselines.find((b) => b.metric === 'cold_load_s');
+    const workloads = fleetArr.map((f) => {
+      const m = f.metrics || {};
+      const lat = (m.summary || {}).latency || {};
+      const n = m.series ? m.series.total : null;
+      const auto = f.prod.autoscaling_settings || {};
+      const flagged = m.series ? coldStartFlag(lat, n, auto.min_replica) : false;
+      const eff = flagged ? (lat.p95 ?? lat.p99) : lat.p99;
+      const verdict = m.series ? verdictFor(eff ?? null, BUDGET_INTERACTIVE_MS, flagged, n) : 'AMBER';
+      const reqPerMonth = n != null && windowHours > 0 ? (n / windowHours) * PLANNER_HOURS : null;
+      const inst = matchInstancePrice(prices.data, f.prod.instance_type_name);
+      const dedicatedUsd = inst ? inst.usdPerMin * 60 * PLANNER_HOURS * PLANNER_REPLICAS : null;
+      const apiUsd = reqPerMonth != null && cheapest
+        ? reqPerMonth * (PLANNER_TOK.prompt * cheapest.in + PLANNER_TOK.completion * cheapest.out) / 1e6
+        : null;
+      return {
+        model_id: f.model.id,
+        deployment_id: f.prod.id,
+        observed: { p95_ms: lat.p95 ?? null, p99_ms: lat.p99 ?? null,
+          requests: n, window_hours: windowHours,
+          req_per_month_extrapolated: reqPerMonth },
+        slo: { tier: 'interactive', budget_ms: BUDGET_INTERACTIVE_MS, verdict },
+        options: [
+          { placement: `dedicated ${f.prod.instance_type_name || '?'}`,
+            usd_per_month: dedicatedUsd,
+            latency_expected_ms: { warm_ttft: warm ? warm.value : null,
+              cold_start_s: cold ? cold.value : null },
+            evidence: [
+              inst
+                ? `live GET /v1/instance_type_prices: ${inst.name} $${inst.usdPerMin}/min × 60 × ${PLANNER_HOURS} h × ${PLANNER_REPLICAS} replica`
+                : 'no live instance price matched instance_type_name',
+              ...baseEvidence,
+            ] },
+          { placement: cheapest ? `model-api ${cheapest.slug}` : 'model-api',
+            usd_per_month: apiUsd,
+            latency_expected_ms: null,
+            evidence: [
+              `SNAPSHOT data/model-apis-snapshot.json (${snapshot.fetched_at}) — cheapest blended fit $${cheapest ? cheapest.blended.toFixed(4) : '—'}/Mtok`,
+              `assumes ${PLANNER_TOK.prompt}+${PLANNER_TOK.completion} tokens/request (ratio 3.0) at ${n ?? '—'} observed requests / ${fmtWin()}`,
+            ] },
+        ],
+        recommendation: {
+          placement: null, confidence: null, status: 'pending-rl-artifact',
+          rationale: 'Measured comparison only — the placement optimizer (RL) is a pending feature; its artifact will fill this slot.',
+        },
+      };
+    });
+    return {
+      schema: 'placement-recommendation/v1',
+      generated_at: new Date().toISOString(),
+      source: { kind: 'measured-comparison', window_hours: windowHours,
+        instance_prices_fetched_at: prices.fetchedAt.toISOString(),
+        model_api_snapshot: snapshot.fetched_at },
+      workloads,
+    };
+  }
+
+  // Renderer consumes ONLY the contract — an rl-policy artifact with a filled
+  // recommendation renders without any code change.
+  function renderPlanner(artifact) {
+    const body = $('plannerBody');
+    if (!artifact || artifact.schema !== 'placement-recommendation/v1') {
+      body.innerHTML = '<span class="inline-err">planner artifact has unknown schema</span>';
+      return;
+    }
+    const usd = (v) => v == null ? '—' : '$' + (v >= 100 ? Math.round(v) : v.toFixed(2)) + '/mo';
+    const latLine = (l) => !l ? '—' : Object.entries(l)
+      .map(([k, v]) => `${k} ${Array.isArray(v) ? v.join('–') : (v == null ? '—' : v)}`).join(' · ');
+    const rows = (artifact.workloads || []).map((w) => {
+      const o = w.observed || {}, s = w.slo || {}, r = w.recommendation || {};
+      const opts = (w.options || []).map((opt) => `
+        <div class="popt"><span class="mono">${esc(opt.placement)}</span>
+          <span class="num">${usd(opt.usd_per_month)}</span>
+          <span class="platency">${esc(latLine(opt.latency_expected_ms))}</span>
+          <div class="pevidence">${(opt.evidence || []).map(esc).join('<br>')}</div>
+        </div>`).join('');
+      const reco = r.status === 'pending-rl-artifact'
+        ? `<em>${esc(r.rationale || '')}</em>`
+        : `<strong>${esc(r.placement ?? '—')}</strong>` +
+          (r.confidence != null ? ` <span class="num">(confidence ${esc(r.confidence)})</span>` : '') +
+          ` — ${esc(r.rationale || '')}` +
+          (r.status ? ` <span class="label">${esc(r.status)}</span>` : '');
+      return `<tr>
+        <td><span class="mono">${esc(w.model_id)}</span><br><span class="pdim mono">${esc(w.deployment_id)}</span></td>
+        <td><span class="chip ${Object.prototype.hasOwnProperty.call(chipClass, s.verdict) ? chipClass[s.verdict] : 'chip-warn'}">${esc(s.verdict || '—')}</span><br><span class="pdim">${esc(s.tier || '')} tier (assumed)</span></td>
+        <td class="num">p95 ${fmtMs(o.p95_ms)} · p99 ${fmtMs(o.p99_ms)}<br><span class="pdim">${o.requests != null ? Number(o.requests) : '—'} req / ${o.window_hours != null ? Number(o.window_hours) : '—'}h window</span></td>
+        <td>${opts}</td>
+        <td class="preco">${reco}</td>
+      </tr>`;
+    }).join('');
+    body.innerHTML = `
+      <div class="pdim" style="margin-bottom:8px">source: ${esc((artifact.source || {}).kind || '?')} · generated ${esc(artifact.generated_at || '')}${(artifact.source || {}).model_api_snapshot ? ' · Model API prices: SNAPSHOT ' + esc(artifact.source.model_api_snapshot) : ''}</div>
+      <table class="ptable"><thead><tr><th>workload</th><th>slo posture</th><th>observed</th><th>placement options</th><th>recommendation</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  async function plannerInstancePrices() {
+    // once per refresh generation, and only while the planner is open
+    if (plannerPricesCache && plannerPricesCache.gen === refreshGen) return plannerPricesCache;
+    const data = await api('instance_type_prices');
+    plannerPricesCache = { gen: refreshGen, data, fetchedAt: new Date() };
+    return plannerPricesCache;
+  }
+  async function plannerStaticData() {
+    if (plannerStatics) return plannerStatics;
+    const [snap, base] = await Promise.all([
+      fetch('/data/model-apis-snapshot.json').then((r) => r.json()),
+      fetch('/data/measured-baselines.json').then((r) => r.json()),
+    ]);
+    plannerStatics = { snapshot: snap, baselines: base.entries || [] };
+    return plannerStatics;
+  }
+  async function buildAndRenderPlanner() {
+    const body = $('plannerBody');
+    body.innerHTML = '<span class="notraffic pulsing">building planner…</span>';
+    try {
+      const [prices, statics] = await Promise.all([plannerInstancePrices(), plannerStaticData()]);
+      renderPlanner(buildPlannerModel(fleet, prices, statics.snapshot, statics.baselines));
+    } catch (err) {
+      body.innerHTML = `<span class="inline-err">planner unavailable: ${esc(err.message)}</span>`;
     }
   }
 
@@ -733,6 +940,7 @@
   async function refresh() {
     if (!apiKey || loading || Date.now() < pausedUntil) return;
     loading = true;
+    refreshGen++;                  // invalidates the planner's per-refresh price cache
     $('statusTxt').textContent = 'loading…';
     try {
       const modelsRes = await api('models');
@@ -755,12 +963,15 @@
         f.el.innerHTML = cardMarkup(f.model, f.prod, f.others);
         cards.appendChild(f.el);
       }
-      await mapLimit(fleet, 4, (f) => loadCard(f.el, f.model, f.prod));
+      await mapLimit(fleet, 4, (f) => loadCard(f));
       focusDeepLink();
       if (models.length && !fleet.length) {
         $('empty').hidden = false;
-        $('empty').textContent = 'Models found, but none has a production deployment.';
+        $('empty').innerHTML = 'Models found, but none has a production deployment. ' +
+          '<a href="onboard.html">New to Baseten? Find your model →</a>';
       }
+      $('planner').hidden = fleet.length === 0;
+      if (plannerOpen && fleet.length) buildAndRenderPlanner();
       $('statusTxt').textContent = 'updated ' + new Date().toLocaleTimeString();
     } catch (err) {
       if (err.status === 401) return disconnect('Key rejected by the Baseten API — paste a valid key.');
@@ -784,6 +995,12 @@
     $('controls').hidden = true;
     $('cards').innerHTML = '';
     $('empty').hidden = true;
+    plannerOpen = false;
+    plannerPricesCache = null;
+    $('planner').hidden = true;
+    $('plannerBody').hidden = true;
+    $('plannerBody').innerHTML = '';
+    $('plannerCaret').textContent = '▸';
     showNotice('');
     $('connectPanel').hidden = false;
     $('connectErr').textContent = errMsg || '';
@@ -824,6 +1041,16 @@
   $('cards').addEventListener('click', onManageClick);
   $('modalConfirm').addEventListener('click', confirmMutation);
   $('modalCancel').addEventListener('click', closeModal);
+  $('plannerToggle').addEventListener('click', () => {
+    plannerOpen = !plannerOpen;
+    $('plannerCaret').textContent = plannerOpen ? '▾' : '▸';
+    $('plannerBody').hidden = !plannerOpen;
+    if (plannerOpen && fleet.length) buildAndRenderPlanner();
+  });
+
+  // Test hooks: the planner builder/renderer pair implements the
+  // placement-recommendation/v1 contract (see test/onboard_flow_test.mjs).
+  globalThis.__planner = { buildPlannerModel, renderPlanner };
 })();
 </script>
 </body>

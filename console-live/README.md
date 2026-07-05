@@ -23,6 +23,55 @@ budgets, traffic volume + error split, cold-start detection, and exactly one
 advisory recommendation per card. Every number is footnoted with the API call
 it came from.
 
+## Onboarding (`onboard.html`) — three legs, one handoff model
+
+`/onboard.html` is the "get started" surface for people who do not have a
+fleet yet. Three doors, hash-routed (`#explore`, `#dedicated`, and a link card
+back to `/` for fleet operators):
+
+1. **Which Model API should I use?** (`#explore`) — pick a task + latency tier,
+   state your volume (requests/day × avg prompt/completion tokens →
+   tokens/month), then load the **live** catalog via the proxy
+   (`GET /api/baseten?host=inference&path=models`, Bearer auth). Models are
+   ranked by a documented keyword/context-length task-fit heuristic, then
+   blended price; every row has a "show math" expansion citing the formula,
+   the numbers, and the API call with its time. Picking a row reveals curl +
+   OpenAI-python snippets (from the baseten-onboard skill's handoff template)
+   with the slug pre-filled and the key left as `$BASETEN_API_KEY`.
+2. **Graduate to dedicated** (`#dedicated`) — inherits the leg-1 inputs and
+   draws the serverless-vs-dedicated crossover: dedicated floor from the
+   selected SKU's **live** `GET /v1/instance_type_prices` ($/min × 60 × H),
+   serverless from the live blended $/Mtok, break-even + your-volume markers on
+   a log-x chart. The JS math is test-pinned to
+   `skills/baseten-onboard/scripts/crossover.py`'s self-test vectors. Below it:
+   the proven hardware ladder (T4x8x32 first, with evidence citations) and the
+   **agent handoff** — this console does not deploy models; deployment is
+   executed by your AI agent via the baseten-onboard skill + Baseten MCP. The
+   page generates the exact prompt (Claude Desktop and Claude Code tabs) from
+   your choices; when the agent finishes it hands back a console deep link
+   (`/?model=<model_id>`).
+3. **I run a fleet** — the console itself (`/`).
+
+If a live fetch fails, tables fall back to
+`data/model-apis-snapshot.json` under a visible banner naming the snapshot's
+`fetched_at` and the live error; snapshot and live numbers are never mixed in
+one table.
+
+### Fleet planner (index page, `placement-recommendation/v1`)
+
+A collapsible **Fleet planner** panel above the cards compares, per production
+deployment: SLO posture (the card's verdict), observed p95/p99 + volume,
+dedicated $/mo (live instance price × 730 h × 1 replica, matched by
+`instance_type_name`), and Model API $/mo at observed volume (cheapest fit
+from the labeled snapshot). The recommendation slot renders the
+`placement-recommendation/v1` contract: today `buildPlannerModel` emits kind
+`measured-comparison` / status `pending-rl-artifact` ("the placement optimizer
+(RL) is a pending feature"); a future RL policy artifact with the same schema
+renders with **zero rework** — proved by fixtures in
+`test/onboard_flow_test.mjs`. Measured latency evidence comes from
+`data/measured-baselines.json` (warm TTFT 300–333 ms, cold load 148.2 s,
+activation→ready 114 s — each entry cites its evidence file + date).
+
 ## Observe vs control boundary
 
 This console is **observe-only by default**. It calls three GET endpoints of
@@ -88,6 +137,23 @@ Vercel serves `index.html`/`tokens.css` statically and mounts
 - **Latency is end-to-end response time** (includes full token generation), not
   TTFT; the voice/interactive budgets are illustrative defaults, not per-model
   SLOs.
+- **The fleet planner mixes price provenances in one table** (STAFF-SKEPTIC,
+  2026-07-05): dedicated $/mo is live (`GET /v1/instance_type_prices`) while
+  Model API $/mo comes from the dated snapshot — a deliberate, per-cell-labeled
+  exception to the onboarding page's all-or-nothing rule (there is no snapshot
+  for instance prices). A live catalog fetch through the same proxy
+  (`host=inference`, any key) would remove the exception; until then the table
+  header names the snapshot date.
+- **Planner dedicated $/mo assumes exactly 1 replica × 730 h** even when
+  `autoscaling_settings.min_replica > 1` is known to the same function — it
+  under-quotes HA/voice fleets. The Model API option is the *cheapest blended
+  price* in the snapshot, with **no capability matching** against the deployed
+  model (a fine-tune has no serverless equivalent at any price). Both
+  assumptions are printed in each row's evidence lines; the recommendation slot
+  stays `pending-rl-artifact` partly because of them.
+- **Instance prices are prefix-matched to `instance_type_name`** — an ambiguous
+  SKU-name family could silently cite a neighboring SKU's price; the matched
+  name is always printed in the evidence line so it is auditable.
 
 ## Security notes
 
@@ -96,6 +162,8 @@ Vercel serves `index.html`/`tokens.css` statically and mounts
 - The browser sends it to the proxy as an `x-baseten-api-key` header; the
   proxy forwards it upstream as `Authorization: Api-Key …` and never logs,
   stores, or echoes it (logs are method + path + status only).
-- The proxy allowlists exactly three GET path shapes and four query params;
-  everything else is rejected (405/400/403). Upstream 401/429 (with
+- The proxy allowlists a closed host map (`mgmt` → api.baseten.co with
+  `Api-Key` auth; `inference` → inference.baseten.co with `Bearer` auth, the
+  latter admitting only `models`), four mgmt GET path shapes, and four query
+  params; everything else is rejected (405/400/403). Upstream 401/429 (with
   `Retry-After`) pass through so the UI can react.

@@ -12,6 +12,7 @@ class FakeEl {
     this.tag = tag; this.className = ''; this.children = [];
     this._innerHTML = ''; this.subs = new Map(); this.listeners = {};
     this.hidden = false; this.value = ''; this.textContent = ''; this.checked = false;
+    this.dataset = {};   // deep-link feature writes el.dataset.modelId
   }
   set innerHTML(v) { this._innerHTML = v; if (v === '') { this.children = []; this.subs.clear(); } }
   get innerHTML() { return this._innerHTML; }

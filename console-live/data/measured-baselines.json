@@ -1,0 +1,26 @@
+{
+  "note": "Measured (not vendor-quoted) latency baselines for dedicated T4x8x32 / Qwen3-8B-AWQ. Every entry cites the committed evidence file and its date. Consumed by the fleet planner's latency_expected_ms evidence and by onboard.html.",
+  "entries": [
+    {
+      "metric": "warm_ttft_ms",
+      "value": [300, 333],
+      "unit": "ms",
+      "source": "evals/mcp-deploy/PHASE1_EVIDENCE.md",
+      "date": "2026-07-04"
+    },
+    {
+      "metric": "cold_load_s",
+      "value": 148.2,
+      "unit": "s",
+      "source": "docs/FRICTION_LOG.md #17",
+      "date": "2026-07-02"
+    },
+    {
+      "metric": "activation_ready_s",
+      "value": 114,
+      "unit": "s",
+      "source": "evals/mcp-deploy/PHASE1_EVIDENCE.md",
+      "date": "2026-07-04"
+    }
+  ]
+}

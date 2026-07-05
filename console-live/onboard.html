@@ -1,0 +1,927 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Get started with Baseten — onboarding</title>
+<link rel="stylesheet" href="tokens.css">
+<style>
+  /* Page-level overrides + utilities on top of tokens.css (same pattern as index.html) */
+  body { overflow: auto; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 20px 80px; }
+
+  header.top {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--bg); border-bottom: 1px solid var(--stroke);
+    padding: 14px 0 12px;
+  }
+  .top-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .top-row h1 { font-size: var(--fs-h1); font-weight: 700; letter-spacing: 0.02em; }
+  .top-row .spacer { flex: 1; }
+  .top-row a.back { color: var(--text-2); font-size: var(--fs-small); text-decoration: none; }
+  .top-row a.back:hover { color: var(--accent); }
+
+  .notice {
+    padding: 8px 12px; margin: 12px 0; border-radius: var(--r-sm);
+    background: var(--warn-bg); border: 1px solid rgba(240,179,78,.3);
+    color: var(--warn); font-size: var(--fs-small);
+  }
+  .keyrow { padding: 14px 16px; margin: 14px 0; }
+  .keyrow p { color: var(--text-2); font-size: var(--fs-small); margin-bottom: 10px; }
+  .keyrow form { display: flex; gap: 10px; }
+  .keyrow input {
+    flex: 1; max-width: 420px; background: var(--panel-2); border: 1px solid var(--stroke-hi);
+    border-radius: var(--r-sm); color: var(--text); padding: 8px 10px;
+    font-family: var(--font-mono); font-size: var(--fs-small);
+  }
+  .keyrow input:focus { outline: none; border-color: var(--accent-dim); }
+
+  .doors { display: grid; gap: var(--gap); margin: 18px 0;
+           grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .door { display: block; padding: 18px; text-decoration: none; color: var(--text);
+          transition: border-color .15s ease; }
+  .door:hover { border-color: var(--accent-dim); }
+  .door h2 { font-size: var(--fs-h1); margin-bottom: 6px; }
+  .door p { color: var(--text-2); font-size: var(--fs-small); }
+  .door .go { display: block; margin-top: 10px; color: var(--accent); font-size: var(--fs-small); }
+
+  section.leg { margin-top: 22px; }
+  .leg-panel { padding: 18px; margin-bottom: var(--gap); }
+  .leg-panel h2 { font-size: var(--fs-h1); margin-bottom: 4px; }
+  .leg-panel h3 { font-size: var(--fs-body); margin-bottom: 6px; }
+  .leg-panel > p.sub { color: var(--text-2); font-size: var(--fs-small); margin-bottom: 12px; }
+
+  .chip-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin: 8px 0 12px; }
+  .chip-row .label { margin-right: 4px; }
+  .chip-btn {
+    font-family: var(--font-ui); font-size: var(--fs-small); font-weight: 600;
+    color: var(--text-2); background: var(--panel-2);
+    border: 1px solid var(--stroke-hi); border-radius: 999px;
+    padding: 5px 14px; cursor: pointer;
+  }
+  .chip-btn:hover { color: var(--text); border-color: var(--accent-dim); }
+  .chip-btn.on { color: var(--accent); background: var(--accent-bg); border-color: var(--accent-line); }
+
+  .vol-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; margin: 8px 0 12px; }
+  .vol-row .field { display: flex; flex-direction: column; gap: 4px; }
+  .vol-row input {
+    width: 120px; background: var(--panel-2); border: 1px solid var(--stroke-hi);
+    border-radius: var(--r-sm); color: var(--text); padding: 6px 8px;
+    font-family: var(--font-mono); font-size: var(--fs-small);
+  }
+  .vol-row input:focus { outline: none; border-color: var(--accent-dim); }
+  .vol-computed { color: var(--text-2); font-size: var(--fs-small); }
+  .vol-computed .num { color: var(--text); }
+
+  .fallback-banner {
+    padding: 8px 12px; margin: 10px 0; border-radius: var(--r-sm);
+    background: var(--warn-bg); border: 1px solid rgba(240,179,78,.3);
+    color: var(--warn); font-size: var(--fs-small);
+  }
+  .amber-note {
+    padding: 8px 12px; margin: 10px 0; border-radius: var(--r-sm);
+    background: var(--warn-bg); border: 1px solid rgba(240,179,78,.3);
+    color: var(--warn); font-size: var(--fs-small);
+  }
+  .amber-note a { color: var(--warn); }
+
+  table.tbl { width: 100%; border-collapse: collapse; font-size: var(--fs-small); margin-top: 10px; }
+  table.tbl th {
+    text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--stroke-hi);
+    font-size: var(--fs-micro); font-weight: 600; letter-spacing: .09em;
+    text-transform: uppercase; color: var(--text-3);
+  }
+  table.tbl td { padding: 7px 8px; border-bottom: 1px solid var(--stroke); vertical-align: top; }
+  table.tbl tr.pickable:hover td { background: var(--panel-3); }
+  table.tbl tr.picked td { background: var(--accent-bg); }
+  table.tbl .modelname { font-weight: 600; }
+  table.tbl .slug { color: var(--text-3); font-size: var(--fs-micro); }
+  table.tbl .feat { color: var(--text-3); font-size: var(--fs-micro); }
+  tr.mathrow td {
+    background: var(--panel-2); font-family: var(--font-mono);
+    font-size: var(--fs-micro); color: var(--text-2); white-space: pre-line;
+  }
+  .linklike {
+    background: none; border: none; color: var(--accent); cursor: pointer;
+    font-size: var(--fs-small); padding: 0; text-decoration: underline;
+  }
+
+  .snippets { margin-top: 14px; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 8px; }
+  .tab {
+    font-size: var(--fs-small); font-weight: 600; color: var(--text-2);
+    background: var(--panel-2); border: 1px solid var(--stroke-hi);
+    border-radius: var(--r-sm) var(--r-sm) 0 0; padding: 6px 14px; cursor: pointer;
+  }
+  .tab.on { color: var(--accent); border-color: var(--accent-line); background: var(--accent-bg); }
+  pre.code {
+    background: var(--panel-2); border: 1px solid var(--stroke-hi);
+    border-radius: var(--r-sm); padding: 12px; overflow-x: auto;
+    font-family: var(--font-mono); font-size: var(--fs-small); line-height: 1.5;
+    white-space: pre-wrap; word-break: break-word;
+  }
+  .foot-src { color: var(--text-3); font-size: 10px; font-family: var(--font-mono); margin-top: 8px; }
+
+  .xover-controls { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 10px; }
+  .xover-controls select {
+    background: var(--panel-2); border: 1px solid var(--stroke-hi);
+    border-radius: var(--r-sm); color: var(--text-2); padding: 6px 8px;
+    font-size: var(--fs-small); font-family: var(--font-ui); max-width: 340px;
+  }
+  svg.xover { display: block; max-width: 100%; margin-top: 6px; }
+
+  ul.ladder, ol.steps { margin: 8px 0 0 18px; color: var(--text-2); font-size: var(--fs-small); }
+  ul.ladder li, ol.steps li { margin-bottom: 8px; line-height: 1.5; }
+  .inline-err { color: var(--danger); font-size: var(--fs-small); }
+  .copy-ok { color: var(--ok); font-size: var(--fs-micro); margin-left: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="top-row">
+      <h1>Get started with Baseten</h1>
+      <span class="chip chip-accent" id="modeChip"><span class="dot"></span>read-only</span>
+      <span class="spacer"></span>
+      <a class="back" href="/">← back to the console</a>
+    </div>
+  </header>
+
+  <div id="notice" class="notice" hidden></div>
+
+  <section id="keyRow" class="panel keyrow" hidden>
+    <p>Paste a Baseten API key to fetch live data. It is held in memory only —
+       never stored, never put in a URL — and sent solely to this page's proxy
+       as a request header. Any Baseten key works for the Model API catalog
+       (Bearer); instance prices need a <strong>management</strong> key.</p>
+    <form id="keyForm">
+      <input type="password" id="keyInput" placeholder="Baseten API key" autocomplete="off" required>
+      <button class="btn primary" type="submit">Use key</button>
+    </form>
+  </section>
+
+  <div class="doors" id="doors">
+    <a class="panel door" href="#explore">
+      <h2>Which Model API should I use?</h2>
+      <p>Serverless, per-token, OpenAI-compatible. Rank the live catalog by
+         task fit and price at your volume.</p>
+      <span class="go">Explore the catalog →</span>
+    </a>
+    <a class="panel door" href="#dedicated">
+      <h2>Graduate to dedicated</h2>
+      <p>Custom weights, voice-tier latency, or volume past the break-even?
+         Crossover math, a proven hardware ladder, and an agent handoff.</p>
+      <span class="go">See the crossover →</span>
+    </a>
+    <a class="panel door" href="/">
+      <h2>I run a fleet</h2>
+      <p>Already serving? The live console shows SLO posture, traffic, and a
+         fleet planner per production deployment.</p>
+      <span class="go">Open the console →</span>
+    </a>
+  </div>
+
+  <!-- ============ LEG 1: explore the Model API catalog ============ -->
+  <section class="leg" id="explore" hidden>
+    <div class="panel leg-panel">
+      <h2>Which Model API should I use?</h2>
+      <p class="sub">Pick a task and tier, state your volume, then load the live
+         catalog — every price on this page names its API call and time.</p>
+
+      <div class="chip-row" id="taskChips">
+        <span class="label">task</span>
+        <button class="chip-btn" data-task="chat">chat</button>
+        <button class="chip-btn" data-task="code">code</button>
+        <button class="chip-btn" data-task="reasoning">reasoning</button>
+        <button class="chip-btn" data-task="long-context">long-context</button>
+        <button class="chip-btn" data-task="vision">vision</button>
+      </div>
+      <div class="chip-row" id="tierChips">
+        <span class="label">latency tier</span>
+        <button class="chip-btn" data-tier="voice">voice</button>
+        <button class="chip-btn" data-tier="interactive">interactive</button>
+        <button class="chip-btn" data-tier="batch">batch</button>
+      </div>
+      <div class="amber-note" id="voiceNote" hidden>
+        Voice tier needs pinned dedicated capacity — Model APIs share capacity and
+        rate limits. Measured warm TTFT 300–333 ms on T4x8x32
+        (evals/mcp-deploy/PHASE1_EVIDENCE.md, 2026-07-04).
+        <a href="#dedicated">Graduate to dedicated →</a>
+      </div>
+
+      <div class="vol-row">
+        <span class="label">volume</span>
+        <span class="field"><span class="label">requests/day</span>
+          <input type="number" min="0" id="reqDay" value="1000"></span>
+        <span class="field"><span class="label">avg prompt tokens</span>
+          <input type="number" min="0" id="tokIn" value="750"></span>
+        <span class="field"><span class="label">avg completion tokens</span>
+          <input type="number" min="0" id="tokOut" value="250"></span>
+        <span class="vol-computed" id="volLine"></span>
+      </div>
+
+      <button class="btn primary" id="loadCatalogBtn">Load live catalog</button>
+      <div class="fallback-banner" id="catalogBanner" hidden></div>
+      <div id="catalogWrap"></div>
+
+      <div class="snippets" id="snippetCard" hidden>
+        <h3>Call <span class="mono" id="snippetSlug"></span></h3>
+        <div class="tabs" id="snippetTabs">
+          <button class="tab on" data-snip="curl">curl</button>
+          <button class="tab" data-snip="python">OpenAI python</button>
+        </div>
+        <pre class="code" id="snippetCode"></pre>
+        <div class="foot-src">snippets from skills/baseten-onboard/references/handoff-template.md ·
+          set $BASETEN_API_KEY yourself — this page never echoes your key</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LEG 2: graduate to dedicated ============ -->
+  <section class="leg" id="dedicated" hidden>
+    <div class="panel leg-panel">
+      <h2>Graduate to dedicated — is it worth it at your volume?</h2>
+      <p class="sub">Inherits your leg-1 inputs (edit them here, both legs stay in
+         sync). Dedicated floor uses the selected SKU's live $/min; serverless
+         uses the live blended $/Mtok of your selected (or top-ranked) model.</p>
+
+      <div class="vol-row">
+        <span class="label">your inputs</span>
+        <span class="field"><span class="label">requests/day</span>
+          <input type="number" min="0" id="reqDay2" value="1000"></span>
+        <span class="field"><span class="label">avg prompt tokens</span>
+          <input type="number" min="0" id="tokIn2" value="750"></span>
+        <span class="field"><span class="label">avg completion tokens</span>
+          <input type="number" min="0" id="tokOut2" value="250"></span>
+        <span class="vol-computed" id="volLine2"></span>
+      </div>
+
+      <div class="xover-controls">
+        <span class="field"><span class="label">SKU (live prices — management key)</span>
+          <select id="skuSel"><option value="">fetch live data first</option></select></span>
+        <span class="field"><span class="label">warm hours/month (H)</span>
+          <input type="number" min="1" id="hoursInp" value="730" style="width:90px;
+            background:var(--panel-2);border:1px solid var(--stroke-hi);border-radius:var(--r-sm);
+            color:var(--text);padding:6px 8px;font-family:var(--font-mono);font-size:var(--fs-small);"></span>
+        <button class="btn primary" id="loadDedicatedBtn">Fetch live data</button>
+      </div>
+      <div class="fallback-banner" id="xoverBanner" hidden></div>
+      <div id="crossoverWrap"></div>
+      <div class="amber-note" id="closeNote" hidden></div>
+    </div>
+
+    <div class="panel leg-panel" id="ladderCard">
+      <h2>Hardware ladder (8B-class; re-rank live for other sizes)</h2>
+      <p class="sub">From skills/baseten-onboard/references/decision-table.md — proven
+         SKUs over theoretically-optimal ones.</p>
+      <ul class="ladder">
+        <li><strong>1 · T4x8x32</strong> — proven end-to-end in this repo:
+          schedulable, 16 GiB VRAM fits 8B-AWQ + 4k KV, warm TTFT 300–333 ms,
+          activation→ready 114 s warm-cache, cold <span class="mono">model.load()</span>
+          148 s with the BDN weights block (evidence: evals/mcp-deploy/PHASE1_EVIDENCE.md
+          + docs/FRICTION_LOG.md #17; price: fetch live above).</li>
+        <li><strong>2 · L4-class</strong> — more VRAM / newer; <em>verify
+          schedulability in your org first</em>.</li>
+        <li><strong>3 · A10G</strong> — <span style="color:var(--warn)">known
+          org-gating risk</span>: rejected at <span class="mono">truss push</span>,
+          not at config validation (friction #13). Only take with a fallback ranked.</li>
+        <li><strong>Avoid</strong> single-T4 SKUs with ≤16 GiB <em>system</em> RAM
+          for 8B — host-OOM crash-loop observed (friction #7).</li>
+      </ul>
+      <h3 style="margin-top:12px">Config non-negotiables</h3>
+      <ul class="ladder">
+        <li><span class="mono">weights:</span> BDN block — measured 360 s → 148 s
+          cold start, 2.4× (friction #17).</li>
+        <li>Fully pinned requirements — unpinned transformers caused an import-time
+          crash-loop with green builds (friction #14:
+          <span class="mono">vllm==0.9.1</span> needs
+          <span class="mono">transformers==4.53.2</span>).</li>
+        <li>Org-gating means: rank a fallback, never promise a SKU before push
+          succeeds (friction #13).</li>
+      </ul>
+    </div>
+
+    <div class="panel leg-panel" id="handoffCard">
+      <h2>This console does not deploy models. Deployment is executed by your AI
+          agent using the baseten-onboard skill + Baseten MCP — below is
+          everything it needs.</h2>
+      <ol class="steps">
+        <li>Claude Desktop → Settings → Connectors → add
+          <span class="mono">https://api.baseten.co/mcp</span>
+          (key from <span class="mono">app.baseten.co/settings/api_keys</span>)</li>
+        <li><span class="mono">npx skills add vsiwach/baseten-mvp</span></li>
+      </ol>
+
+      <div class="vol-row" style="margin-top:14px">
+        <span class="field"><span class="label">custom weights?</span>
+          <label style="color:var(--text-2);font-size:var(--fs-small)">
+            <input type="checkbox" id="cwChk"> yes — HF repo:</label></span>
+        <span class="field"><span class="label">hf repo (if custom)</span>
+          <input type="text" id="repoInp" placeholder="org/model" style="width:220px"></span>
+        <span class="field"><span class="label">monthly budget ceiling $</span>
+          <input type="number" min="0" id="budgetInp" value="50"></span>
+        <span class="field"><span class="label">session spend ceiling $</span>
+          <input type="number" min="0" id="sessionInp" value="1"></span>
+      </div>
+
+      <div class="tabs" id="promptTabs" style="margin-top:10px">
+        <button class="tab on" data-ptab="desktop">Claude Desktop</button>
+        <button class="tab" data-ptab="code">Claude Code</button>
+      </div>
+      <pre class="code" id="promptPre"></pre>
+      <button class="btn" id="copyBtn">Copy</button><span class="copy-ok" id="copyOk"></span>
+    </div>
+
+    <div class="panel leg-panel">
+      <h2>When the agent finishes</h2>
+      <p class="sub">The skill's last step hands you a deep link:
+        <span class="mono">https://baseten-reliability-console.vercel.app/?model=&lt;model_id&gt;</span> —
+        it opens the fleet console focused on your new deployment's card (outlined
+        for a few seconds), with live SLO posture, traffic, and gated manage
+        actions. One workload's metrics live on Baseten's own dashboard
+        (<span class="mono">app.baseten.co/models/&lt;model_id&gt;/overview</span>);
+        the console earns its keep when you run more than one, or hold an SLO.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+'use strict';
+(() => {
+  // ---- state (key lives only in this closure, same discipline as index.html) ----
+  let apiKey = null;
+  let pendingAfterKey = null;   // continuation waiting for a key
+  let catalog = null;           // { rows, source:'live'|'snapshot', fetchedAt, snapshotAt, error }
+  let instances = null;         // { list:[{name,usdPerMin,gpu,gpuCount}], fetchedAt, error }
+  let openMath = new Set();     // row indexes with the math row expanded
+  let snipTab = 'curl';
+  let promptTab = 'desktop';
+
+  const DAYS_PER_MONTH = 30;    // documented assumption for requests/day → tokens/month
+  const state = {
+    task: 'chat', tier: 'interactive',
+    reqPerDay: 1000, promptTok: 750, completionTok: 250,
+    hours: 730, budget: 50, session: 1,
+    customWeights: false, customRepo: '',
+    model: null,                // selected catalog row
+    skuName: 'T4x8x32',
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (ch) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const loc = typeof location !== 'undefined' ? location : { hash: '' };
+  const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const fmtTok = (v) => v >= 1e12 ? (v / 1e12).toFixed(v < 1e13 ? 1 : 0) + 'T'
+    : v >= 1e9 ? (v / 1e9).toFixed(v < 1e10 ? 1 : 0) + 'B'
+    : v >= 1e6 ? (v / 1e6).toFixed(v < 1e7 ? 1 : 0) + 'M'
+    : v >= 1e3 ? (v / 1e3).toFixed(0) + 'k' : String(Math.round(v));
+  const fmtUsd = (v) => v === 0 ? '$0'
+    : '$' + (v >= 100 ? v.toFixed(0) : v >= 1 ? v.toFixed(2) : v.toFixed(4));
+
+  // ---- volume / derived ----
+  const tokensPerMonth = () =>
+    state.reqPerDay * DAYS_PER_MONTH * (state.promptTok + state.completionTok);
+  const promptTokensPerMonth = () => state.reqPerDay * DAYS_PER_MONTH * state.promptTok;
+  const completionTokensPerMonth = () => state.reqPerDay * DAYS_PER_MONTH * state.completionTok;
+  // ratio derived from the two token inputs; falls back to the skill default 3.0
+  const ratio = () => {
+    const r = state.promptTok / state.completionTok;
+    return Number.isFinite(r) && r > 0 ? r : 3.0;
+  };
+
+  // ---- crossover math — MUST reproduce skills/baseten-onboard/scripts/crossover.py
+  //      exactly (self-test vector asserted in test/onboard_flow_test.mjs) ----
+  function blendedUsdPerMtok(pPrompt, pCompletion, r) {
+    return (r * pPrompt + pCompletion) / (r + 1.0);
+  }
+  function crossoverCompute(inp) {
+    const r = inp.prompt_completion_ratio !== undefined ? Number(inp.prompt_completion_ratio) : 3.0;
+    const blended = blendedUsdPerMtok(
+      Number(inp.model_api_usd_per_mtok_prompt),
+      Number(inp.model_api_usd_per_mtok_completion), r);
+    const floor = Number(inp.instance_usd_per_min) * 60.0 *
+      Number(inp.utilization_hours_per_month);
+    return {
+      blended_usd_per_mtok: blended,
+      dedicated_floor_usd_per_month: floor,
+      break_even_tokens_per_month: (floor / blended) * 1_000_000,
+    };
+  }
+
+  // ---- proxy client ----
+  // Client-side 12 s cap (proxy's own upstream timeout is 10 s): a blackholed
+  // connect must still resolve into the snapshot-fallback path, never a hang.
+  const fetchOpts = () => {
+    const o = { headers: { 'x-baseten-api-key': apiKey } };
+    if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) o.signal = AbortSignal.timeout(12000);
+    return o;
+  };
+  async function fetchProxy(qs) {
+    const res = await fetch('/api/baseten?' + qs, fetchOpts());
+    if (!res.ok) {
+      let msg = 'HTTP ' + res.status;
+      try { const b = await res.json(); if (b && b.error) msg += ' — ' + b.error; } catch {}
+      throw new Error(msg);
+    }
+    return res.json();
+  }
+
+  // Lazy key request: a leg's fetch button calls needKey(continuation); if no
+  // key is present the key panel appears and the continuation runs on submit.
+  function needKey(cont) {
+    if (apiKey) return cont();
+    pendingAfterKey = cont;
+    $('keyRow').hidden = false;
+    $('keyInput').focus();
+  }
+
+  // ---- catalog (leg 1) ----
+  // Live shape (settled, verified 2026-07-05): items {id, name, description,
+  // context_length, max_completion_tokens, quantization, pricing:{prompt,
+  // completion, image}} — pricing strings are USD PER TOKEN → ×1e6 for $/Mtok.
+  function normalizeLive(json) {
+    const items = json.data || json.models || [];
+    return items.map((it) => ({
+      slug: it.id, name: it.name || it.id, description: it.description || '',
+      context_length: it.context_length != null ? Number(it.context_length) : null,
+      in: Number((it.pricing || {}).prompt) * 1e6,
+      out: Number((it.pricing || {}).completion) * 1e6,
+      features: (it.supported_features || [])
+        .concat((it.pricing || {}).image != null ? ['vision'] : []),
+    })).filter((r) => Number.isFinite(r.in) && Number.isFinite(r.out));
+  }
+  function normalizeSnapshot(snap) {
+    return (snap.models || []).map((m) => ({
+      slug: m.slug, name: m.name, description: '',
+      context_length: m.context_length != null ? Number(m.context_length) : null,
+      in: Number(m.usd_per_1m_prompt), out: Number(m.usd_per_1m_completion),
+      features: m.supported_features || [],
+    }));
+  }
+
+  // Task-fit heuristic (documented): score each model against the chosen task
+  // using ONLY name/description/feature keywords + context_length:
+  //   chat         — every model qualifies (+1 baseline); price breaks ties
+  //   code         — +2 if /code|coder/i in name/slug/description; +1 for 'tools' feature
+  //   reasoning    — +2 if 'reasoning' feature; +1 if /reason/i in text
+  //   long-context — +2 if context_length ≥ 200k; +1 if ≥ 128k
+  //   vision       — +3 if 'vision' feature or /vision|image|multimodal/i in text;
+  //                  models without it score 0 and sink to the bottom
+  // Rank: fit score desc, then blended $/Mtok (at the derived ratio) asc.
+  function fitScore(row, task) {
+    const hay = `${row.slug} ${row.name} ${row.description}`.toLowerCase();
+    const feats = row.features.map((f) => String(f).toLowerCase());
+    if (task === 'code') return (/(code|coder)/.test(hay) ? 2 : 0) + (feats.includes('tools') ? 1 : 0) + 1;
+    if (task === 'reasoning') return (feats.includes('reasoning') ? 2 : 0) + (/reason/.test(hay) ? 1 : 0) + 1;
+    if (task === 'long-context') {
+      return (row.context_length >= 200000 ? 2 : row.context_length >= 128000 ? 1 : 0) + 1;
+    }
+    if (task === 'vision') {
+      return (feats.includes('vision') || /vision|image|multimodal/.test(hay)) ? 3 : 0;
+    }
+    return 1; // chat
+  }
+  const blendedOf = (row) => blendedUsdPerMtok(row.in, row.out, ratio());
+  function rankedRows() {
+    if (!catalog) return [];
+    return catalog.rows
+      .map((row) => ({ row, fit: fitScore(row, state.task), blended: blendedOf(row) }))
+      .sort((a, b) => b.fit - a.fit || a.blended - b.blended);
+  }
+  const estMonthly = (row) =>
+    (promptTokensPerMonth() * row.in + completionTokensPerMonth() * row.out) / 1e6;
+
+  async function loadSnapshotCatalog(err) {
+    const res = await fetch('/data/model-apis-snapshot.json');
+    const snap = await res.json();
+    catalog = { rows: normalizeSnapshot(snap), source: 'snapshot',
+      snapshotAt: snap.fetched_at, error: err };
+  }
+  async function loadCatalog() {
+    return new Promise((resolve) => needKey(async () => {
+      try {
+        const json = await fetchProxy('host=inference&path=models');
+        catalog = { rows: normalizeLive(json), source: 'live', fetchedAt: new Date() };
+      } catch (err) {
+        try { await loadSnapshotCatalog(err.message); }
+        catch (e2) { catalog = null; showNotice('catalog unavailable: ' + err.message + ' / snapshot: ' + e2.message); }
+      }
+      renderCatalog();
+      resolve();
+    }));
+  }
+
+  function catalogSourceLine() {
+    return catalog.source === 'live'
+      ? `source: GET inference.baseten.co/v1/models via this proxy at ${hhmm(catalog.fetchedAt)}`
+      : `source: data/model-apis-snapshot.json (fetched_at ${catalog.snapshotAt})`;
+  }
+
+  function mathRowText(row) {
+    const r = ratio();
+    const blended = blendedOf(row);
+    const pM = promptTokensPerMonth(), cM = completionTokensPerMonth();
+    return `blended = (R×in + out)/(R+1) = (${r.toFixed(1)}×$${row.in.toFixed(4)} + $${row.out.toFixed(4)})/${(r + 1).toFixed(1)} = $${blended.toFixed(4)}/Mtok
+est/month = (prompt ${fmtTok(pM)} × $${row.in.toFixed(4)} + completion ${fmtTok(cM)} × $${row.out.toFixed(4)}) / 1M = ${fmtUsd(estMonthly(row))}
+${catalogSourceLine()}`;
+  }
+
+  function renderCatalog() {
+    const banner = $('catalogBanner');
+    if (!catalog) { $('catalogWrap').innerHTML = ''; return; }
+    if (catalog.source === 'snapshot') {
+      banner.textContent = `snapshot from ${catalog.snapshotAt} — refresh via the ` +
+        `baseten-onboard skill; live fetch failed: ${catalog.error}`;
+      banner.hidden = false;
+    } else {
+      banner.hidden = true;
+    }
+    // All-or-nothing per table: every number below comes from ONE source
+    // (live fetch or the snapshot), never a mix.
+    const rows = rankedRows();
+    const body = rows.map(({ row, fit, blended }, i) => {
+      const picked = state.model && state.model.slug === row.slug;
+      const main = `<tr class="pickable${picked ? ' picked' : ''}" data-i="${i}">
+        <td><span class="modelname">${esc(row.name)}</span><br><span class="slug mono">${esc(row.slug)}</span></td>
+        <td class="num">$${row.in.toFixed(2)}</td>
+        <td class="num">$${row.out.toFixed(2)}</td>
+        <td class="num">${row.context_length ? fmtTok(row.context_length) : '—'}</td>
+        <td class="feat">${esc(row.features.join(', ') || '—')}</td>
+        <td class="num">${fmtUsd(estMonthly(row))}</td>
+        <td><button class="linklike" data-math="${i}">show math</button>
+            <button class="linklike" data-pick="${i}">use</button></td>
+      </tr>`;
+      const math = openMath.has(i)
+        ? `<tr class="mathrow"><td colspan="7">${esc(mathRowText(row))}</td></tr>` : '';
+      return main + math;
+    }).join('');
+    $('catalogWrap').innerHTML = `
+      <table class="tbl">
+        <thead><tr><th>model (ranked: ${esc(state.task)} fit, then blended price)</th>
+          <th>$/Mtok in</th><th>$/Mtok out</th><th>context</th><th>features</th>
+          <th>est. $/month at your volume</th><th></th></tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+      <div class="foot-src">${esc(catalogSourceLine())} · est. $/month at ${esc(fmtTok(tokensPerMonth()))} tokens/month (${state.reqPerDay} req/day × ${DAYS_PER_MONTH} days × ${state.promptTok}+${state.completionTok} tokens)</div>`;
+  }
+
+  // ---- snippets (leg 1 terminal) — from references/handoff-template.md,
+  //      slug pre-filled, key stays a $BASETEN_API_KEY placeholder ----
+  // Catalog slugs are third-party content pasted into a shell/python string:
+  // restrict to a safe charset so a hostile slug can't break out of quotes.
+  function safeSlug(slug) {
+    return /^[A-Za-z0-9._\/-]{1,128}$/.test(slug) ? slug : 'INVALID_MODEL_SLUG';
+  }
+  function snippets(rawSlug) {
+    const slug = safeSlug(rawSlug);
+    return {
+      curl: `curl -N https://inference.baseten.co/v1/chat/completions \\
+  -H "Authorization: Bearer $BASETEN_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model": "${slug}", "stream": true,
+       "messages": [{"role": "user", "content": "hello"}]}'`,
+      python: `import os
+from openai import OpenAI
+
+client = OpenAI(base_url="https://inference.baseten.co/v1",
+                api_key=os.environ["BASETEN_API_KEY"])
+resp = client.chat.completions.create(
+    model="${slug}", stream=True,
+    messages=[{"role": "user", "content": "hello"}])
+for chunk in resp:
+    print(chunk.choices[0].delta.content or "", end="")`,
+    };
+  }
+  function renderSnippets() {
+    const card = $('snippetCard');
+    if (!state.model) { card.hidden = true; return; }
+    card.hidden = false;
+    $('snippetSlug').textContent = state.model.slug;
+    $('snippetCode').textContent = snippets(state.model.slug)[snipTab];
+    for (const b of $('snippetTabs').querySelectorAll('.tab')) {
+      b.className = 'tab' + (b.dataset.snip === snipTab ? ' on' : '');
+    }
+  }
+
+  // ---- crossover (leg 2) ----
+  async function loadDedicated() {
+    return new Promise((resolve) => needKey(async () => {
+      try {
+        const j = await fetchProxy('path=instance_type_prices');
+        instances = {
+          list: (j.instance_types || []).map((e) => ({
+            name: e.instance_type.name, usdPerMin: Number(e.price),
+            gpu: e.instance_type.gpu_type || '', gpuCount: e.instance_type.gpu_count || 0,
+          })).filter((s) => Number.isFinite(s.usdPerMin)),
+          fetchedAt: new Date(),
+        };
+      } catch (err) { instances = { list: [], error: err.message }; }
+      // blended needs the live catalog too (key already present here, so
+      // loadCatalog's needKey passes straight through; snapshot fallback inside)
+      if (!catalog || catalog.source !== 'live') await loadCatalog();
+      renderSkuSelect();
+      renderDedicated();
+      resolve();
+    }));
+  }
+
+  function renderSkuSelect() {
+    if (!instances || !instances.list.length) return;
+    if (!instances.list.some((s) => s.name === state.skuName)) {
+      state.skuName = instances.list[0].name;
+    }
+    $('skuSel').innerHTML = instances.list.map((s) =>
+      `<option value="${esc(s.name)}"${s.name === state.skuName ? ' selected' : ''}>` +
+      `${esc(s.name)} — $${s.usdPerMin.toFixed(5)}/min${s.gpu ? ` (${esc(s.gpu)}×${s.gpuCount})` : ''}</option>`).join('');
+  }
+
+  function chosenModel() {
+    if (state.model) return state.model;
+    const ranked = rankedRows();
+    return ranked.length ? ranked[0].row : null;
+  }
+  function chosenSku() {
+    return instances ? instances.list.find((s) => s.name === state.skuName) : null;
+  }
+
+  function crossoverSvg(x, userVol) {
+    // x-axis: tokens/month, log scale; y: $/month linear.
+    const W = 680, H = 280, L = 74, R = 24, T = 18, B = 48;
+    const be = x.break_even_tokens_per_month;
+    const floor = x.dedicated_floor_usd_per_month;
+    const xmin = Math.max(1e4, Math.min(be, userVol || be) / 30);
+    const xmax = Math.max(be, userVol || be) * 30;
+    const ymax = floor * 2.5;
+    const lg = Math.log10;
+    const X = (v) => L + (lg(v) - lg(xmin)) / (lg(xmax) - lg(xmin)) * (W - L - R);
+    const Y = (v) => T + (1 - Math.min(v, ymax) / ymax) * (H - T - B);
+    // serverless cost line sampled in log space
+    const pts = [];
+    for (let i = 0; i <= 80; i++) {
+      const v = Math.pow(10, lg(xmin) + (lg(xmax) - lg(xmin)) * i / 80);
+      pts.push(`${X(v).toFixed(1)},${Y(x.blended_usd_per_mtok * v / 1e6).toFixed(1)}`);
+    }
+    // decade ticks
+    let ticks = '';
+    for (let d = Math.ceil(lg(xmin)); d <= Math.floor(lg(xmax)); d++) {
+      const v = Math.pow(10, d);
+      ticks += `<line x1="${X(v).toFixed(1)}" y1="${H - B}" x2="${X(v).toFixed(1)}" y2="${H - B + 5}" stroke="var(--stroke-hi)"/>
+        <text x="${X(v).toFixed(1)}" y="${H - B + 18}" text-anchor="middle" fill="var(--text-3)" font-size="10">${fmtTok(v)}</text>`;
+    }
+    let yticks = '';
+    for (const f of [0, 0.5, 1, 1.5, 2, 2.5]) {
+      const v = ymax * f / 2.5;
+      yticks += `<line x1="${L}" y1="${Y(v).toFixed(1)}" x2="${W - R}" y2="${Y(v).toFixed(1)}" stroke="var(--stroke)" stroke-width="0.5"/>
+        <text x="${L - 6}" y="${(Y(v) + 3).toFixed(1)}" text-anchor="end" fill="var(--text-3)" font-size="10">${fmtUsd(v)}</text>`;
+    }
+    const userMark = userVol ? `
+      <line x1="${X(userVol).toFixed(1)}" y1="${T}" x2="${X(userVol).toFixed(1)}" y2="${H - B}" stroke="var(--ok)" stroke-dasharray="2 3"/>
+      <text x="${X(userVol).toFixed(1)}" y="${T + 10}" text-anchor="middle" fill="var(--ok)" font-size="10">you · ${fmtTok(userVol)}</text>` : '';
+    return `<svg class="xover" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="crossover chart">
+      ${yticks}${ticks}
+      <line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" stroke="var(--stroke-hi)"/>
+      <line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" stroke="var(--stroke-hi)"/>
+      <line x1="${L}" y1="${Y(floor).toFixed(1)}" x2="${W - R}" y2="${Y(floor).toFixed(1)}" stroke="var(--warn)" stroke-width="1.5"/>
+      <text x="${W - R}" y="${(Y(floor) - 6).toFixed(1)}" text-anchor="end" fill="var(--warn)" font-size="10">dedicated floor ${fmtUsd(floor)}/mo</text>
+      <polyline points="${pts.join(' ')}" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+      <text x="${L + 6}" y="${T + 10}" fill="var(--accent)" font-size="10">Model API (blended × tokens)</text>
+      <line x1="${X(be).toFixed(1)}" y1="${T}" x2="${X(be).toFixed(1)}" y2="${H - B}" stroke="var(--text-3)" stroke-dasharray="4 3"/>
+      <circle cx="${X(be).toFixed(1)}" cy="${Y(floor).toFixed(1)}" r="4" fill="var(--text)"/>
+      <text x="${X(be).toFixed(1)}" y="${H - B + 32}" text-anchor="middle" fill="var(--text-2)" font-size="10">break-even ${fmtTok(be)} tok/mo</text>
+      ${userMark}
+      <text x="${(W - R)}" y="${H - 4}" text-anchor="end" fill="var(--text-3)" font-size="10">tokens/month (log)</text>
+    </svg>`;
+  }
+
+  function renderDedicated() {
+    const wrap = $('crossoverWrap');
+    const banner = $('xoverBanner');
+    const note = $('closeNote');
+    note.hidden = true;
+    if (!instances) { wrap.innerHTML = ''; banner.hidden = true; return; }
+    if (instances.error || !instances.list.length) {
+      banner.textContent = `crossover unavailable — live GET api.baseten.co/v1/instance_type_prices failed: ${instances.error || 'empty list'}. There is no snapshot for instance prices; the chart never mixes snapshot and live numbers.`;
+      banner.hidden = false;
+      wrap.innerHTML = '';
+      return;
+    }
+    const model = chosenModel();
+    if (!catalog || !model) {
+      banner.textContent = 'load the catalog (leg 1) or fetch live data to pick a serverless price.';
+      banner.hidden = false; wrap.innerHTML = ''; return;
+    }
+    if (catalog.source !== 'live') {
+      // All-or-nothing: dedicated line would be live, serverless snapshot → refuse to mix.
+      banner.textContent = `crossover chart needs LIVE catalog prices — live fetch failed: ${catalog.error}. ` +
+        'The table above falls back to the snapshot, but this chart never mixes snapshot and live numbers.';
+      banner.hidden = false; wrap.innerHTML = ''; return;
+    }
+    banner.hidden = true;
+    const sku = chosenSku();
+    if (!sku) { wrap.innerHTML = '<span class="inline-err">select a SKU</span>'; return; }
+    const r = ratio();
+    const x = crossoverCompute({
+      instance_usd_per_min: sku.usdPerMin,
+      utilization_hours_per_month: state.hours,
+      model_api_usd_per_mtok_prompt: model.in,
+      model_api_usd_per_mtok_completion: model.out,
+      prompt_completion_ratio: r,
+    });
+    const vol = tokensPerMonth();
+    const cheaper = vol < x.break_even_tokens_per_month ? 'Model API' : 'Dedicated';
+    wrap.innerHTML = crossoverSvg(x, vol) + `
+      <div class="foot-src">dedicated floor: ${esc(sku.name)} $${sku.usdPerMin}/min × 60 × ${state.hours} h = ${fmtUsd(x.dedicated_floor_usd_per_month)}/mo — source: GET api.baseten.co/v1/instance_type_prices via this proxy at ${hhmm(instances.fetchedAt)}</div>
+      <div class="foot-src">serverless: ${esc(model.slug)} blended $${x.blended_usd_per_mtok.toFixed(4)}/Mtok = (${r.toFixed(1)}×$${model.in.toFixed(4)} + $${model.out.toFixed(4)})/${(r + 1).toFixed(1)} — source: GET inference.baseten.co/v1/models via this proxy at ${hhmm(catalog.fetchedAt)}</div>
+      <div class="foot-src">break-even ${fmtTok(x.break_even_tokens_per_month)} tokens/month · your volume ${fmtTok(vol)} → <strong>${cheaper}</strong> is cheaper on price alone</div>`;
+    // Within 3× of break-even either way → lead with operational differences.
+    if (vol > 0 && vol >= x.break_even_tokens_per_month / 3 && vol <= x.break_even_tokens_per_month * 3) {
+      note.innerHTML = 'This decision is <strong>close</strong> (your volume is within 3× of ' +
+        'break-even) — lead with operational differences, not price: dedicated pays ' +
+        '<strong>cold starts</strong> (measured cold model.load() 148.2 s, docs/FRICTION_LOG.md #17; ' +
+        'activation→ready 114 s, PHASE1_EVIDENCE.md) and a warm-replica floor; Model APIs pay ' +
+        '<strong>rate limits</strong> (account-tier: 15 RPM unverified / 120 RPM verified, ' +
+        'deploy/baseten/ACTIVATION_RUNBOOK.md) and shared capacity.';
+      note.hidden = false;
+    }
+  }
+
+  // ---- agent handoff prompt (EXACT template; test-snapshotted) ----
+  function buildPrompt(p) {
+    return `Use the baseten-onboard skill to onboard me to a dedicated Baseten deployment.
+My choices (from baseten-reliability-console.vercel.app/onboard.html, ${p.iso}):
+- model: ${safeSlug(p.model)}  (custom weights: ${p.customWeights ? 'yes' : 'no'})
+- latency tier: ${p.tier}
+- expected volume: ${p.tokensPerMonth.toLocaleString('en-US')} tokens/month (prompt:completion ratio ${p.ratio.toFixed(1)})
+- hardware: ${p.sku} preferred; fall back down the proven ladder if org-gated
+- monthly budget ceiling: $${p.budget}; session spend ceiling: $${p.session}
+Re-fetch all prices live before quoting; nothing that bills without my yes.
+When the endpoint is verified, give me the console deep link
+(https://baseten-reliability-console.vercel.app/?model=<model_id>).`;
+  }
+  // Claude Code one-liner. Single-quoted: the prompt contains $ (budget) and
+  // double quotes are absent, so POSIX single quotes are the safe wrapping;
+  // any embedded single quote is escaped as '\''.
+  const shellSingleQuote = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
+  function buildCodeCommand(prompt) {
+    return 'claude ' + shellSingleQuote('npx skills add vsiwach/baseten-mvp -y && ' + prompt);
+  }
+  function promptParams(iso) {
+    return {
+      iso: iso || new Date().toISOString(),
+      model: state.customWeights && state.customRepo ? state.customRepo
+        : (chosenModel() ? chosenModel().slug : '<pick a model in leg 1>'),
+      customWeights: state.customWeights,
+      tier: state.tier,
+      tokensPerMonth: Math.round(tokensPerMonth()),
+      ratio: ratio(),
+      sku: state.skuName,
+      budget: state.budget,
+      session: state.session,
+    };
+  }
+  function renderPrompt() {
+    const prompt = buildPrompt(promptParams());
+    $('promptPre').textContent = promptTab === 'desktop' ? prompt : buildCodeCommand(prompt);
+    for (const b of $('promptTabs').querySelectorAll('.tab')) {
+      b.className = 'tab' + (b.dataset.ptab === promptTab ? ' on' : '');
+    }
+  }
+
+  // ---- shared render / sync ----
+  function showNotice(msg) {
+    const el = $('notice');
+    el.textContent = msg;
+    el.hidden = !msg;
+  }
+  function renderVolume() {
+    const line = `= <span class="num">${fmtTok(tokensPerMonth())}</span> tokens/month ` +
+      `(× ${DAYS_PER_MONTH} days) · ratio <span class="num">${ratio().toFixed(1)}</span>:1`;
+    $('volLine').innerHTML = line;
+    $('volLine2').innerHTML = line;
+  }
+  function syncInputs() {
+    for (const [a, b, k] of [['reqDay', 'reqDay2', 'reqPerDay'],
+      ['tokIn', 'tokIn2', 'promptTok'], ['tokOut', 'tokOut2', 'completionTok']]) {
+      $(a).value = state[k]; $(b).value = state[k];
+    }
+  }
+  function refreshDerived() {
+    renderVolume();
+    if (catalog) renderCatalog();
+    if (instances) renderDedicated();
+    renderPrompt();
+  }
+  function renderChips() {
+    for (const b of $('taskChips').querySelectorAll('.chip-btn')) {
+      b.className = 'chip-btn' + (b.dataset.task === state.task ? ' on' : '');
+    }
+    for (const b of $('tierChips').querySelectorAll('.chip-btn')) {
+      b.className = 'chip-btn' + (b.dataset.tier === state.tier ? ' on' : '');
+    }
+    $('voiceNote').hidden = state.tier !== 'voice';
+  }
+
+  // ---- hash routing: #explore / #dedicated show leg sections; #fleet is a
+  //      plain link card to /. Honors location.hash on load. ----
+  function route() {
+    const h = String(loc.hash || '').replace('#', '');
+    $('explore').hidden = h !== 'explore';
+    $('dedicated').hidden = h !== 'dedicated';
+  }
+
+  // ---- events ----
+  $('keyForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const key = $('keyInput').value.trim();
+    if (!key) return;
+    apiKey = key;
+    $('keyInput').value = '';
+    $('keyRow').hidden = true;
+    const cont = pendingAfterKey;
+    pendingAfterKey = null;
+    if (cont) cont();
+  });
+  $('taskChips').addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('.chip-btn');
+    if (!b) return;
+    state.task = b.dataset.task;
+    renderChips(); refreshDerived();
+  });
+  $('tierChips').addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('.chip-btn');
+    if (!b) return;
+    state.tier = b.dataset.tier;
+    renderChips(); refreshDerived();
+  });
+  const numInput = (id, key) => $(id).addEventListener('input', () => {
+    const v = Number($(id).value);
+    if (Number.isFinite(v) && v >= 0) { state[key] = v; syncInputs(); refreshDerived(); }
+  });
+  numInput('reqDay', 'reqPerDay'); numInput('tokIn', 'promptTok'); numInput('tokOut', 'completionTok');
+  numInput('reqDay2', 'reqPerDay'); numInput('tokIn2', 'promptTok'); numInput('tokOut2', 'completionTok');
+  numInput('hoursInp', 'hours'); numInput('budgetInp', 'budget'); numInput('sessionInp', 'session');
+  $('loadCatalogBtn').addEventListener('click', () => { loadCatalog().then(renderPrompt); });
+  $('loadDedicatedBtn').addEventListener('click', () => { loadDedicated().then(renderPrompt); });
+  $('skuSel').addEventListener('change', (e) => {
+    state.skuName = e.target.value; renderDedicated(); renderPrompt();
+  });
+  $('catalogWrap').addEventListener('click', (e) => {
+    const t = e.target.closest && e.target.closest('[data-math],[data-pick]');
+    if (!t) return;
+    if (t.dataset.math !== undefined) {
+      const i = Number(t.dataset.math);
+      openMath.has(i) ? openMath.delete(i) : openMath.add(i);
+      renderCatalog();
+    } else {
+      const i = Number(t.dataset.pick);
+      state.model = rankedRows()[i] ? rankedRows()[i].row : null;
+      renderCatalog(); renderSnippets(); renderPrompt();
+      if (instances) renderDedicated();
+    }
+  });
+  $('snippetTabs').addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('.tab');
+    if (!b) return;
+    snipTab = b.dataset.snip; renderSnippets();
+  });
+  $('promptTabs').addEventListener('click', (e) => {
+    const b = e.target.closest && e.target.closest('.tab');
+    if (!b) return;
+    promptTab = b.dataset.ptab; renderPrompt();
+  });
+  $('cwChk').addEventListener('change', (e) => {
+    state.customWeights = !!e.target.checked; renderPrompt();
+  });
+  $('repoInp').addEventListener('input', (e) => {
+    state.customRepo = e.target.value.trim(); renderPrompt();
+  });
+  $('copyBtn').addEventListener('click', () => {
+    const text = $('promptPre').textContent;
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        $('copyOk').textContent = 'copied';
+        setTimeout(() => { $('copyOk').textContent = ''; }, 2000);
+      });
+    }
+  });
+  if (typeof window !== 'undefined' && window.addEventListener) {
+    window.addEventListener('hashchange', route);
+  }
+
+  // ---- init ----
+  route();
+  renderChips();
+  syncInputs();
+  renderVolume();
+  renderPrompt();
+
+  // Test hooks (offline harness only; carries no key material).
+  globalThis.__onboard = {
+    state, crossoverCompute, blendedUsdPerMtok, buildPrompt, buildCodeCommand,
+    loadCatalog, loadDedicated, getCatalog: () => catalog, promptParams,
+  };
+})();
+</script>
+</body>
+</html>
