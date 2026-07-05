@@ -10,7 +10,7 @@
 const LIVE = new Set([
   "/v1/metrics/hero", "/v1/metrics/slo", "/v1/pools", "/v1/incidents",
   "/v1/releases/active", "/v1/learning/policy-eval", "/v1/manage/options",
-  "/v1/releases/timeline", "/v1/placement/feed"
+  "/v1/releases/timeline", "/v1/placement/feed", "/v1/migrations/current"
 ]);
 /* The board reads the feed as an array; the live SSE stream stays at
    /v1/placement/feed — the board uses its snapshot lens instead. */

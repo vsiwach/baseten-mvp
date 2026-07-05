@@ -39,7 +39,9 @@
 <script>
 (async () => {
   await renderShell("Manage");
-  const data = await fetchJSON("/v1/manage/options");
+  const [data, poolsSnap, releaseActive] = await Promise.all([
+    fetchJSON("/v1/manage/options"), fetchJSON("/v1/pools"),
+    fetchJSON("/v1/releases/active")]);
 
   const kindLabel = { fleet: "fleet upgrade", model: "model upgrade", spill: "spill" };
   let selected = null;   // {pool, option}
@@ -108,20 +110,107 @@
     if (apply) apply.addEventListener("click", openConfirm);
   }
 
+  /* ---- live KV-affinity drain: the Apply flow starts a REAL migration
+     (POST /v1/migrations, router-local fetch — no key header) and polls
+     /v1/migrations/current every 3 s into this modal. The gated write only
+     arms once the router reports DRAINED. Cancel aborts an in-flight
+     migration so the router is never left mid-migration. */
   const modal = document.getElementById("confirm");
+  const goBtn = document.getElementById("confirm-go");
+  let migration = null;     // {migration_id, ...} from POST /v1/migrations
+  let migPoll = null;
+
+  function setDrainStatus(html) {
+    document.getElementById("confirm-drain").innerHTML = html;
+  }
+  function drainPlanHTML(pool) {
+    return '<div class="label" style="margin-bottom:6px">Drain plan (' + drainMode + ')</div>' +
+      '<ol style="margin:0; padding-left:18px; color:var(--text-secondary); font-size:var(--fs-label)">' +
+        pool.drain.steps[drainMode].map(s => "<li>" + esc(s) + "</li>").join("") + '</ol>';
+  }
+  function migStatusHTML(cur) {
+    const pct = (cur.progress_pct ?? 0).toFixed(0);
+    return '<div class="label" style="margin:10px 0 6px">Migration ' + esc(cur.id || "") + ' — ' + esc(cur.state) + '</div>' +
+      '<div style="height:4px; border-radius:2px; background:var(--bg-inset); overflow:hidden">' +
+        '<div style="height:4px; width:' + pct + '%; background:var(--accent)"></div></div>' +
+      '<div class="caption num" style="margin-top:6px">' +
+        'live prefixes ' + cur.live_prefixes_remaining + ' · in-flight ' + cur.in_flight +
+        ' · ttl horizon ' + cur.ttl_horizon_s + 's · ' + pct + '%</div>' +
+      '<button class="btn" id="mig-abort" style="margin-top:8px; padding:2px 9px; font-size:var(--fs-caption)">Abort migration</button>';
+  }
+  function wireAbort(pool) {
+    const b = document.getElementById("mig-abort");
+    if (!b) return;
+    b.addEventListener("click", async () => {
+      if (!migration) return;
+      const r = await fetch("/v1/migrations/" + migration.migration_id + "/abort", { method: "POST" });
+      stopMigrationPoll();
+      setDrainStatus(drainPlanHTML(pool) +
+        '<div class="caption" style="margin-top:8px">migration ' + (r.ok ? "aborted — source restored" : "abort failed (HTTP " + r.status + ")") + '</div>');
+      migration = null;
+    });
+  }
+  function stopMigrationPoll() { if (migPoll) { clearInterval(migPoll); migPoll = null; } }
+
+  async function startMigration(pool) {
+    const target = (poolsSnap.pools || []).map(p => p.id).find(id => id !== pool.id);
+    try {
+      if (!target) throw new Error("no second pool to migrate to");
+      const resp = await fetch("/v1/migrations", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model: releaseActive.model, source: pool.id,
+                               target, mode: drainMode, weight: 1.0 })
+      });
+      const body = await resp.json();
+      if (!resp.ok) throw new Error("HTTP " + resp.status + ": " + JSON.stringify(body));
+      migration = body;
+      const poll = async () => {
+        const cur = await (await fetch("/v1/migrations/current")).json();
+        if (!migration) return;
+        if (cur.state === "idle") { stopMigrationPoll(); return; }
+        setDrainStatus(drainPlanHTML(pool) + migStatusHTML(cur));
+        wireAbort(pool);
+        if (cur.state === "drained") {
+          goBtn.disabled = false;   // the gated write arms ONLY at DRAINED
+        }
+      };
+      await poll();
+      migPoll = setInterval(poll, 3000);
+    } catch (e) {
+      if (document.body.dataset.live === "true") {
+        setDrainStatus(drainPlanHTML(pool) +
+          '<div class="caption" style="margin-top:8px">migration failed: ' + esc(String(e)) + '</div>');
+      } else {
+        /* standalone mock package: no router — fall back to the old
+           immediate-enable behavior, labeled honestly */
+        goBtn.disabled = false;
+        setDrainStatus(drainPlanHTML(pool) +
+          '<div class="caption" style="margin-top:8px">mock mode — live drain unavailable, write not gated on DRAINED</div>');
+      }
+    }
+  }
+
   function openConfirm() {
     if (!selected) return;
     const { pool, option } = selected;
     document.getElementById("confirm-summary").innerHTML =
       'Applying <strong>' + esc(option.label) + '</strong> to <span class="num">' + esc(pool.id) + '</span> with a <strong>' + drainMode + '</strong> drain. This mutates production.';
     document.getElementById("confirm-mutation").textContent = option.mutation_preview;
-    document.getElementById("confirm-drain").innerHTML =
-      '<div class="label" style="margin-bottom:6px">Drain plan (' + drainMode + ')</div>' +
-      '<ol style="margin:0; padding-left:18px; color:var(--text-secondary); font-size:var(--fs-label)">' +
-        pool.drain.steps[drainMode].map(s => "<li>" + esc(s) + "</li>").join("") + '</ol>';
+    setDrainStatus(drainPlanHTML(pool) +
+      '<div class="caption" style="margin-top:8px">starting ' + drainMode + ' migration…</div>');
+    goBtn.disabled = true;
     modal.classList.add("open");
+    startMigration(pool);
   }
-  document.getElementById("confirm-cancel").addEventListener("click", () => modal.classList.remove("open"));
+  async function closeModal() {
+    modal.classList.remove("open");
+    stopMigrationPoll();
+    if (migration) {   // never leave the router mid-migration on cancel
+      fetch("/v1/migrations/" + migration.migration_id + "/abort", { method: "POST" }).catch(() => {});
+      migration = null;
+    }
+  }
+  document.getElementById("confirm-cancel").addEventListener("click", closeModal);
 
   /* Live apply: fleet/model go through the gated two-step writes handshake
      (token bound to the exact previewed mutation); spill re-applies the
@@ -135,8 +224,9 @@
   const canonical = obj =>
     JSON.stringify(Object.fromEntries(Object.entries(obj).sort(([a], [b]) => a < b ? -1 : 1)));
 
-  document.getElementById("confirm-go").addEventListener("click", async () => {
-    if (!selected) { modal.classList.remove("open"); return; }
+  goBtn.addEventListener("click", async () => {
+    if (goBtn.disabled) return;
+    if (!selected) { closeModal(); return; }
     const { option } = selected;
     const fail = t => { document.getElementById("confirm-summary").textContent = t; };
     try {
@@ -167,13 +257,19 @@
       }
       const result = await resp.json();
       if (!resp.ok) { fail("apply failed (HTTP " + resp.status + "): " + JSON.stringify(result)); return; }
+      /* the write landed — the DRAINED migration is now complete */
+      if (migration) {
+        stopMigrationPoll();
+        fetch("/v1/migrations/" + migration.migration_id + "/complete", { method: "POST" }).catch(() => {});
+        migration = null;
+      }
       modal.classList.remove("open");
       selected = null;
       render();
     } catch (e) { fail("apply failed: " + String(e)); }
   });
-  modal.addEventListener("click", e => { if (e.target === modal) modal.classList.remove("open"); });
-  document.addEventListener("keydown", e => { if (e.key === "Escape") modal.classList.remove("open"); });
+  modal.addEventListener("click", e => { if (e.target === modal) closeModal(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape") closeModal(); });
 
   render();
 })();

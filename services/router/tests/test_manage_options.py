@@ -105,10 +105,16 @@ def test_drain_steps_labeled_built_vs_roadmap():
     graceful, immediate = drain["steps"]["graceful"], \
         drain["steps"]["immediate"]
     assert all(s.startswith(("[built]", "[roadmap]")) for s in graceful)
-    assert [s for s in graceful if s.startswith("[roadmap]")] and \
-        "KV-aware" in [s for s in graceful if s.startswith("[roadmap]")][0]
-    assert sum(1 for s in graceful if s.startswith("[built]")) == 3
+    built = [s for s in graceful if s.startswith("[built]")]
+    # the KV-aware graceful migration + weighted ramp are BUILT now
+    assert len(built) == 2
+    assert "KV-aware graceful migration" in built[0]
+    assert "/v1/migrations" in built[0]
+    assert "weighted ramp" in built[1]
+    roadmap = [s for s in graceful if s.startswith("[roadmap]")]
+    assert roadmap and "proactive KV transfer" in roadmap[0]
     assert len(immediate) == 1 and immediate[0].startswith("[built]")
+    assert "re-prefill storm" in immediate[0]
 
 
 def test_risk_line_is_real_util_trend_and_spills():

@@ -17,7 +17,6 @@ import json
 
 T4_USD_PER_HR = 0.90          # Baseten dedicated T4, per replica while active
 COLD_START_S = 148            # measured with weights: BDN — FRICTION_LOG #17
-DRAIN_TIMEOUT_S = 30          # graceful drain in-flight wait (router default)
 SPILL_WINDOW_S = 300.0
 TREND_WINDOW_LABEL = "15m"
 
@@ -140,24 +139,23 @@ def _spill_option(placement: dict, catalog: dict | None,
     }
 
 
-def _drain_plan(pool_id: str) -> dict:
+def _drain_plan() -> dict:
+    """Truthful drain plan: the KV-aware graceful migration and the weighted
+    ramp are BUILT (services/router/router_app/migration.py, POST
+    /v1/migrations); proactive KV transfer before detach stays roadmap."""
     return {
         "modes": ["graceful", "immediate"],
         "steps": {
             "graceful": [
-                "[built] Exclude pool from placement (sticky quarantine — "
-                "no new requests land here)",
-                f"[built] Wait for in-flight requests on the pool to reach 0 "
-                f"(timeout {DRAIN_TIMEOUT_S} s)",
-                f"[built] Report drained "
-                f"(POST /v1/pools/{pool_id}/drain?mode=graceful)",
-                "[roadmap] Weighted, KV-aware drain — migrate warm KV "
-                "sessions before detach",
+                "[built] KV-aware graceful migration — new prefixes → "
+                "target, warm sessions ride out KV TTL on source "
+                "(POST /v1/migrations)",
+                "[built] weighted ramp (weight param)",
+                "[roadmap] proactive KV transfer before detach",
             ],
             "immediate": [
-                "[built] Immediate placement exclusion — new requests stop "
-                "now, in-flight requests are not waited on "
-                f"(POST /v1/pools/{pool_id}/drain?mode=immediate)",
+                "[built] immediate placement exclusion "
+                "(re-prefill storm on target)",
             ],
         },
     }
@@ -191,6 +189,6 @@ def build(*, pools: list[dict], samples: list, replicas: list[dict],
                 _model_option(model_id, deployment_id, timeline),
                 _spill_option(placement, catalog, default_alias),
             ],
-            "drain": _drain_plan(rep["id"]),
+            "drain": _drain_plan(),
         })
     return {"pools": out}

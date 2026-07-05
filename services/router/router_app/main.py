@@ -28,6 +28,7 @@ from router_app.health import HealthPoller
 from router_app.incidents import IncidentStore
 from router_app.kvstate import KVState
 from router_app.metrics import MetricsWindow
+from router_app.migration import MigrationConflict, MigrationManager
 from router_app.placement import eligible_pools
 from router_app.policy import (NoHealthyBackend, UnknownModel, resolve_tier,
                                select, select_replica)
@@ -45,6 +46,9 @@ class RouterState:
         self.events = EventLog()
         self.metrics = MetricsWindow()
         self.incidents = IncidentStore(emit=self.events.emit)
+        # KV-affinity graceful migration — one slot per router; the state
+        # machine is pure (migration.py), routes/quarantine are glued here
+        self.migration = MigrationManager(emit=self.events.emit)
         self.release = None            # F5 wires live canary control
         # ground-truth fault windows written by /v1/dev/chaos — the incident
         # agent's tape recorder reads these to attach replayable tapes to
@@ -162,7 +166,8 @@ class RouterState:
             cost_of=lambda p: float(self.policy["cost_table"].get(p, 0.0)),
             affinity_cfg=affinity, capacity=int(affinity.get("capacity", 8)),
             latency_of=lambda u: self.poller.status_for(u).p50_ms,
-            placement_filter=placement_filter)
+            placement_filter=placement_filter,
+            migration=self.migration.active())
         decide_ms = round((time.monotonic() - decide_start) * 1000, 2)
         return choice, tier, tier_rules, decide_ms, prompt
 
@@ -199,6 +204,13 @@ class RouterState:
                          wl_tier=tier, tag=tag, decide_ms=decide_ms,
                          iso_ts=time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                               time.gmtime()))
+        # migration accounting: routed counters + the lazy drained check
+        # (a completion may have been the source's last in-flight request)
+        mig = self.migration.active()
+        if mig is not None:
+            self.migration.note_route(choice.replica_id, choice.reason)
+            self.migration.observe(self.kvstate.cached_prefixes(mig.source),
+                                   self.kvstate.pending(mig.source))
         if not (ttft_ok and tpot_ok):
             # feeds the devboard's self-serve incident management
             self.events.emit("slo_breach", model=model,
@@ -1010,13 +1022,14 @@ def get_app(registry_path: Path | None = None,
         """SSE stream of placement decisions (newest events as they land)."""
         def tail():
             last = state.events.seq()
-            # replay the most recent decisions so the board fills instantly
-            for ev in state.events.recent(8, "route"):
-                item = devboard.feed_item(ev)
-                if item:
-                    yield f"data: {json.dumps(item)}\n\n"
+            # replay the most recent decisions so the board fills instantly.
+            # No kind filter: feed_item maps route + migration_* events and
+            # returns None for everything else.
+            replay = [devboard.feed_item(ev) for ev in state.events.recent(30)]
+            for item in [i for i in replay if i][-8:]:
+                yield f"data: {json.dumps(item)}\n\n"
             while True:
-                for ev in state.events.since(last, "route"):
+                for ev in state.events.since(last):
                     last = max(last, ev["seq"])
                     item = devboard.feed_item(ev)
                     if item:
@@ -1027,10 +1040,12 @@ def get_app(registry_path: Path | None = None,
     @app.get("/v1/placement/feed/snapshot")
     def placement_feed_snapshot():
         """Last 30 placement decisions as one JSON array — the console's
-        non-SSE lens over the same EventLog ring the SSE feed tails."""
+        non-SSE lens over the same EventLog ring the SSE feed tails.
+        Migration lifecycle events ride the same feed (devboard.feed_item
+        maps route + migration_* kinds; everything else is dropped)."""
         items = [devboard.feed_item(ev)
-                 for ev in state.events.recent(30, "route")]
-        return [i for i in items if i]
+                 for ev in state.events.recent(120)]
+        return [i for i in items if i][-30:]
 
     @app.get("/v1/releases/timeline")
     def releases_timeline():
@@ -1118,6 +1133,107 @@ def get_app(registry_path: Path | None = None,
                           pending=state.kvstate.pending(pool_id))
         return {"status": "timeout", "pool": pool_id, "mode": "graceful",
                 "pending": state.kvstate.pending(pool_id)}
+
+    # ---- KV-affinity graceful migration (migration.py holds the pure state
+    # machine; these routes glue it to kvstate/poller). At most one per
+    # router. NOT in the agent allowlist — humans (or the drill) drive it.
+
+    def _migration_replicas(model: str | None):
+        model = model or state.devboard_model()
+        return model, {r["id"]: r
+                       for r in cfg.replicas_for(state.policy, model or "")}
+
+    @app.post("/v1/migrations")
+    async def migration_start(request: Request):
+        try:
+            body = await request.json()
+        except json.JSONDecodeError:
+            return _error(400, "invalid_json", "request body must be JSON")
+        model, by_id = _migration_replicas(body.get("model"))
+        source, target = body.get("source"), body.get("target")
+        for pool_id in (source, target):
+            if pool_id not in by_id:
+                return _error(404, "unknown_pool",
+                              f"pool '{pool_id}' is not a replica of "
+                              f"model '{model}'", pool=pool_id)
+        if source == target:
+            return _error(400, "invalid_migration",
+                          "source and target must differ")
+        snapshot = {"live_prefixes": state.kvstate.cached_prefixes(source),
+                    "in_flight": state.kvstate.pending(source)}
+        try:
+            mig = state.migration.start(
+                model=model, source=source, target=target,
+                mode=body.get("mode", "graceful"),
+                weight=body.get("weight", 1.0), source_snapshot=snapshot)
+        except MigrationConflict as exc:
+            return _error(409, "migration_active", str(exc))
+        except (ValueError, TypeError) as exc:
+            return _error(400, "invalid_migration", str(exc))
+        if mig.mode == "immediate":
+            # sticky quarantine — the same mechanism /v1/pools/{id}/drain
+            # uses; ALL prefixes re-prefill on the target. Snapshot the
+            # pre-existing flag: an agent-set quarantine must survive an
+            # aborted migration (a sick pool stays out of rotation).
+            st = state.poller.status_for(by_id[source]["url"])
+            state.migration_prior_quarantine = st.quarantined
+            st.quarantined = True
+        return {"migration_id": mig.id, "state": mig.state,
+                "source_snapshot": snapshot}
+
+    @app.get("/v1/migrations/current")
+    def migration_current():
+        mig = state.migration.current
+        if mig is None or not mig.active:
+            return {"state": "idle"}
+        live = state.kvstate.cached_prefixes(mig.source)
+        pending = state.kvstate.pending(mig.source)
+        state.migration.observe(live, pending)   # lazy drained check
+        initial = mig.source_snapshot.get("live_prefixes", 0)
+        if mig.state != "migrating":
+            progress = 100.0
+        elif initial > 0:
+            progress = round(max(0.0, min(100.0,
+                                          (1 - live / initial) * 100.0)), 1)
+        else:
+            progress = 0.0
+        return {"id": mig.id, "state": mig.state, "mode": mig.mode,
+                "source": mig.source, "target": mig.target,
+                "weight": mig.weight, "started_at": mig.started_at,
+                "live_prefixes_remaining": live, "in_flight": pending,
+                "ttl_horizon_s": state.kvstate.ttl_horizon_s(mig.source),
+                "progress_pct": progress, "routed": dict(mig.routed)}
+
+    @app.post("/v1/migrations/{migration_id}/abort")
+    def migration_abort(migration_id: str):
+        mig = state.migration.current
+        if mig is None or mig.id != migration_id:
+            return _error(404, "unknown_migration", migration_id)
+        try:
+            state.migration.abort()
+        except MigrationConflict as exc:
+            return _error(409, "not_active", str(exc))
+        if mig.mode == "immediate":
+            # restore the source's flag to its pre-migration value: we lift
+            # only what we set — an agent-set quarantine from before the
+            # migration stays in force.
+            _, by_id = _migration_replicas(mig.model)
+            rep = by_id.get(mig.source)
+            if rep is not None:
+                state.poller.status_for(rep["url"]).quarantined = getattr(
+                    state, "migration_prior_quarantine", False)
+        return {"state": "aborted"}
+
+    @app.post("/v1/migrations/{migration_id}/complete")
+    def migration_complete(migration_id: str):
+        mig = state.migration.current
+        if mig is None or mig.id != migration_id:
+            return _error(404, "unknown_migration", migration_id)
+        try:
+            state.migration.complete()
+        except MigrationConflict as exc:
+            return _error(409, "not_drained", str(exc))
+        return {"state": "completed"}
 
     @app.get("/v1/releases/active")
     def releases_active():

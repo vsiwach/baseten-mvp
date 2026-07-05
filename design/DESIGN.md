@@ -196,3 +196,37 @@ seam, exactly as designed). Deviations from the original mock contract:
     re-POSTs the placement policy, but the spill behavior itself comes from
     the endpoint list (a replica without a `pool` key bypasses placement
     filtering), not from that policy document.
+
+## Deviations — 2026-07-05 (KV-affinity graceful migration)
+
+14. **Manage drain flow is LIVE** (manage.html): the drain radio's Apply
+    flow now starts a real KV-affinity migration — `POST /v1/migrations`
+    (router-local fetch, no key header; source = the at-risk pool, target =
+    the first other pool from `/v1/pools`, model from
+    `/v1/releases/active`) — and polls `/v1/migrations/current` every 3 s
+    INTO the confirm modal: live prefixes remaining, in-flight, TTL horizon
+    and a progress bar, with an **Abort migration** button. The gated write
+    (promote/autoscaling through the existing two-step handshake) is
+    enabled ONLY when the migration reports `drained`, and a successful
+    write completes the migration (`POST /v1/migrations/{id}/complete`).
+    Cancel/Escape/backdrop abort an in-flight migration so the router is
+    never left mid-migration. In the standalone mock package (no router)
+    the migration POST fails and the modal falls back to the previous
+    immediate-enable behavior with an honest "mock mode — live drain
+    unavailable" caption. This supersedes deviation 5: the KV-aware
+    weighted drain is now `[built]` in `/v1/manage/options` (with the
+    weighted ramp); only proactive KV transfer before detach remains
+    `[roadmap]`.
+
+15. **Migration visibility on Operate** (operate.html + mock-data.js +
+    live-fetch.js + the feed): a thin migration progress strip below the
+    hero — existing `card`/`pill`/`caption`/`num` classes and token colors
+    only — polls `/v1/migrations/current` every 3 s and renders only while
+    a migration is active (source → target, mode, live prefixes, in-flight,
+    TTL horizon, routed counters, progress bar). `migration_*` lifecycle
+    events are mapped into placement-feed rows (req = migration id,
+    pool = `source→target`, reason = the event kind), so the drain
+    narrative appears inline in the feed. mock-data.js gains a
+    `"/v1/migrations/current": {state: "idle"}` key and live-fetch.js adds
+    the path to its LIVE set, so both screens keep reading through the
+    `fetchJSON` seam in both modes.

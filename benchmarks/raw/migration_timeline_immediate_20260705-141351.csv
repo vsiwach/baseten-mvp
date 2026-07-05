@@ -1,0 +1,6 @@
+t_rel_s,event,detail
+0.0,load_start,"12 sessions staggered 1.7s, 0.5 rps each, prefix 512 tokens"
+20.0,migrate_start,"mig-0002 mode=immediate weight=1.0 snapshot={'live_prefixes': 6, 'in_flight': 1}"
+41.14,drained,"after 21.14s (routed {'target_new': 60, 'source_warm': 1})"
+41.14,after_probes,"12 probes, one per session prefix"
+44.51,abort_cleanup,source quarantine lifted

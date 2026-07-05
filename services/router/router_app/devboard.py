@@ -163,8 +163,21 @@ def pools_snapshot(metrics: MetricsWindow, replicas: list[dict],
 
 
 def feed_item(event: dict) -> dict | None:
-    """Map a router 'route' event to the placement-feed shape."""
-    if event.get("kind") != "route" or "req" not in event:
+    """Map a router 'route' event to the placement-feed shape. Migration
+    lifecycle events (migration_*) map to the same shape so the board's feed
+    shows the drain narrative inline: pool = source→target, reason = the
+    event kind. Everything else returns None."""
+    kind = event.get("kind", "")
+    if kind.startswith("migration_"):
+        detail = {"migration_progress":
+                  f" ({event.get('live_prefixes', '?')} live prefixes, "
+                  f"{event.get('in_flight', '?')} in-flight)"}.get(kind, "")
+        return {"req": event.get("migration_id", "mig"), "tier": "control",
+                "tag": None,
+                "pool": f"{event.get('source', '?')}→{event.get('target', '?')}",
+                "reason": kind + detail, "ttft_ms": 0.0, "decide_ms": 0.0,
+                "ts": event.get("iso_ts", "")}
+    if kind != "route" or "req" not in event:
         return None
     return {"req": event["req"], "tier": event.get("wl_tier", "agent"),
             "tag": event.get("tag"), "pool": event.get("replica", ""),

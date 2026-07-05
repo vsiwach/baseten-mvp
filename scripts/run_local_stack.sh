@@ -17,16 +17,22 @@ MODEL_API_B_PORT=8104
 WORK="$(mktemp -d)"
 trap 'kill 0 2>/dev/null' EXIT INT TERM
 
-# routing policy with localhost pool URLs (repo policy uses compose hostnames)
+# routing policy with localhost pool URLs (repo policy uses compose hostnames).
+# ROUTING_POLICY_SRC swaps in an overlay WITHOUT touching the default policy —
+# e.g. the two-pool migration drill (see configs/routing-policy.drill.yaml):
+#   ROUTING_POLICY_SRC=configs/routing-policy.drill.yaml KV_TTL_S=20 \
+#     ./scripts/run_local_stack.sh
+POLICY_SRC="${ROUTING_POLICY_SRC:-configs/routing-policy.yaml}"
 sed "s|http://pool-baseten:8080|http://127.0.0.1:${BASETEN_PORT}|; \
      s|http://pool-vllm:8080|http://127.0.0.1:${VLLM_PORT}|; \
      s|http://pool-model-api-a:8080|http://127.0.0.1:${MODEL_API_A_PORT}|; \
      s|http://pool-model-api-b:8080|http://127.0.0.1:${MODEL_API_B_PORT}|" \
-    configs/routing-policy.yaml > "$WORK/routing-policy.yaml"
+    "$POLICY_SRC" > "$WORK/routing-policy.yaml"
 
 echo "· pool baseten-l4 (sim unless BASETEN_BASE_URL set) :${BASETEN_PORT}"
 (cd services/llm && CHAOS_ENABLED=1 ENGINE=baseten MODEL_NAME=qwen3-8b \
   DECODE_MS_PER_TOKEN=28 COLD_START_S=45 USD_PER_1M_COMPLETION=1.05 \
+  KV_TTL_S="${KV_TTL_S:-300}" \
   BASETEN_BASE_URL="${BASETEN_BASE_URL:-}" POOL_USD_PER_HOUR="${BASETEN_USD_PER_HOUR:-1.05}" \
   python3 -m uvicorn llm_app.main:app --host 127.0.0.1 \
   --port "$BASETEN_PORT" --log-level error) &
@@ -34,6 +40,7 @@ echo "· pool baseten-l4 (sim unless BASETEN_BASE_URL set) :${BASETEN_PORT}"
 echo "· pool vllm-l4    (sim unless VLLM_BASE_URL set)    :${VLLM_PORT}"
 (cd services/llm && CHAOS_ENABLED=1 ENGINE=vllm MODEL_NAME=qwen3-8b \
   DECODE_MS_PER_TOKEN=24 COLD_START_S=120 USD_PER_1M_COMPLETION=0.60 \
+  KV_TTL_S="${KV_TTL_S:-300}" \
   VLLM_BASE_URL="${VLLM_BASE_URL:-}" POOL_USD_PER_HOUR="${VLLM_USD_PER_HOUR:-0.60}" \
   python3 -m uvicorn llm_app.main:app --host 127.0.0.1 \
   --port "$VLLM_PORT" --log-level error) &

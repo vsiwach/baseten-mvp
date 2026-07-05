@@ -91,9 +91,12 @@ class ReplicaChoice:
 
 def select_replica(prompt, candidates, *, is_usable, kvstate, tier_rules,
                    cost_of, affinity_cfg, capacity=8, latency_of=None,
-                   placement_filter=None, now=None) -> ReplicaChoice:
+                   placement_filter=None, migration=None, now=None) -> ReplicaChoice:
     """Layered decision (each layer narrows, the next breaks ties):
 
+      0. migration steer    active KV-affinity migration: NEW prefixes (no
+                            warm KV on the source) steer to the target; warm
+                            sessions ride out their KV TTL on the source
       1. placement filter   region / compliance eligibility (Phase 8 hook)
       2. prefix affinity     consistent-hash the prompt prefix to a replica
                              that holds (or should hold) its KV
@@ -102,8 +105,28 @@ def select_replica(prompt, candidates, *, is_usable, kvstate, tier_rules,
       4. tier preference     lowest_cost | lowest_latency as the final tiebreak
 
     Pure: all state is injected (`is_usable`, `kvstate`, `cost_of`,
-    `latency_of`). `candidates` is a list of {id, provider, url, ...} dicts.
+    `latency_of`, `migration` — a migration.Migration or None; only its
+    `active`/`source`/`target`/`takes_target` surface is read).
+    `candidates` is a list of {id, provider, url, ...} dicts.
     """
+    prefix = prefix_hash(prompt, affinity_cfg.get("prefix_tokens", 32))
+
+    # Layer 0 — migration pre-filter, BEFORE every existing layer. A prefix
+    # still warm on the source stays put (the warm-affinity layer keeps it
+    # there — that's the "ride out the TTL" half of a graceful migration);
+    # a new/expired prefix inside the weighted share drops the source from
+    # its candidate set and prefers the target at the ring head. The ring
+    # itself is never rebuilt differently for unsteered prefixes, so abort
+    # restores byte-identical selection.
+    steered = False
+    if migration is not None and migration.active \
+            and not kvstate.holds(migration.source, prefix, now) \
+            and migration.takes_target(prefix):
+        remaining = [c for c in candidates if c["id"] != migration.source]
+        if remaining:   # never steer into an empty candidate set
+            candidates = remaining
+            steered = True
+
     candidates = [c for c in candidates
                   if placement_filter is None or placement_filter(c)]
     if not candidates:
@@ -119,7 +142,6 @@ def select_replica(prompt, candidates, *, is_usable, kvstate, tier_rules,
     if not eligible:
         raise NoHealthyBackend("no healthy replica for request")
 
-    prefix = prefix_hash(prompt, affinity_cfg.get("prefix_tokens", 32))
     by_id = {c["id"]: c for c in eligible}
 
     if affinity_cfg.get("enabled"):
@@ -127,15 +149,23 @@ def select_replica(prompt, candidates, *, is_usable, kvstate, tier_rules,
         # one replica never reshuffles another's prefixes — we just skip it.
         ring = ConsistentHashRing([c["id"] for c in candidates])
         order = [by_id[r] for r in ring.preference(prefix) if r in by_id]
+        if steered:
+            # migration steer: the target moves to the ring head (stable
+            # sort — the rest of the preference order is untouched)
+            order.sort(key=lambda c: c["id"] != migration.target)
         # 2a. warm wins: a replica already holding this prefix turns an
         #     expensive prefill into a cache hit. Among holders, the
         #     ring-preferred one keeps placement stable.
         holders = [c for c in order if kvstate.holds(c["id"], prefix, now)]
         if holders:
-            chosen, reason = holders[0], "affinity_warm"
+            chosen = holders[0]
+            reason = ("migration_target" if steered
+                      and chosen["id"] == migration.target else "affinity_warm")
         elif order:
             # 2b. new prefix: stable consistent-hash placement (its future home)
-            chosen, reason = order[0], "affinity_place"
+            chosen = order[0]
+            reason = ("migration_target" if steered
+                      and chosen["id"] == migration.target else "affinity_place")
         else:  # ring owners all ineligible — fall through to load/tier
             chosen = _least_pending_then_tier(eligible, kvstate, tier_rules,
                                               cost_of, latency_of)
@@ -143,7 +173,8 @@ def select_replica(prompt, candidates, *, is_usable, kvstate, tier_rules,
     else:
         chosen = _least_pending_then_tier(eligible, kvstate, tier_rules,
                                           cost_of, latency_of)
-        reason = "least_pending"
+        reason = ("migration_target" if steered
+                  and chosen["id"] == migration.target else "least_pending")
 
     cache_hit = kvstate.holds(chosen["id"], prefix, now)
     return ReplicaChoice(replica_id=chosen["id"], provider=chosen["provider"],

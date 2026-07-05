@@ -18,6 +18,10 @@ Attacks:
               a fault through the router, watch the incident agent detect →
               quarantine → probe → reinstate → resolve, and write the whole
               timeline + MTTR to benchmarks/raw/ (the evidence chain)
+  migrate     SCRIPTED KV-affinity migration drill: N sessions with fixed
+              prompt prefixes, start a graceful and/or immediate migration
+              (POST /v1/migrations), measure per-phase TTFT + re-prefills
+              until DRAINED, write per-request + timeline + summary CSVs
   deactivate-baseten
               delegates to deploy/baseten/manage.py deactivate (REAL)
   bad-release not implemented until F5 wires live canary control — the
@@ -31,6 +35,7 @@ Examples:
   python3 tools/chaos.py exhaust --router http://localhost:8090 --concurrency 32
   python3 tools/chaos.py drill --scenario latency --router http://localhost:8090
   python3 tools/chaos.py drill --suite --model glm-4.7 --latency-ms 2500
+  python3 tools/chaos.py migrate --source baseten-l4 --target vllm-l4 --mode both
 """
 
 import argparse
@@ -316,6 +321,291 @@ def cmd_drill(args):
         sys.exit(f"drill FAILED: unresolved scenarios: {failed}")
 
 
+# ---------------------------------------------------------------------------
+# migrate — KV-affinity migration drill with per-phase TTFT/re-prefill evidence
+# ---------------------------------------------------------------------------
+
+def _try_post(url, body):
+    """Best-effort POST for cleanup paths — never sys.exit mid-teardown."""
+    req = urllib.request.Request(
+        url, data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return json.loads(resp.read())
+    except (urllib.error.URLError, OSError, ValueError):
+        return None
+
+
+def _pctl(vals, pct):
+    """p50/p95 over floats; '' for an empty phase (honest, not fabricated)."""
+    if not vals:
+        return ""
+    s = sorted(vals)
+    return round(s[max(0, min(len(s) - 1, round(pct / 100 * len(s)) - 1))], 1)
+
+
+def _session_prefix(sid: int, prefix_tokens: int) -> str:
+    """Fixed per-session prefix covering the router's whole affinity window
+    (prefix_tokens * ~4 chars/token) so every request in a session shares
+    one prefix hash — the unit the migration steers."""
+    base = (f"migration drill session {sid:02d} :: shared context block "
+            "for kv reuse ") * (prefix_tokens // 4 + 2)
+    return base[:prefix_tokens * 4]
+
+
+def _mig_request(router, model, prompt, timeout=60):
+    """One streaming chat request; measures CLIENT TTFT (first SSE data
+    line) and returns the router's routing/economics headers."""
+    body = json.dumps({"model": model, "max_tokens": 8, "stream": True,
+                       "messages": [{"role": "user", "content": prompt}]
+                       }).encode()
+    req = urllib.request.Request(
+        f"{router}/v1/chat/completions", data=body,
+        headers={"Content-Type": "application/json"}, method="POST")
+    t0 = time.monotonic()
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            first = None
+            for line in resp:
+                if first is None and line.startswith(b"data:"):
+                    first = time.monotonic()
+            end = time.monotonic()
+            h = resp.headers
+            return {"ok": True,
+                    "client_ttft_ms": round(((first or end) - t0) * 1000, 1),
+                    "replica": h.get("X-Replica", ""),
+                    "route_reason": h.get("X-Route-Reason", ""),
+                    "cache": h.get("X-Cache", ""),
+                    "server_ttft_ms": h.get("X-TTFT-Ms", ""),
+                    "prompt_tokens": h.get("X-Prompt-Tokens", "")}
+    except (urllib.error.URLError, OSError) as e:
+        return {"ok": False, "error": str(e)}
+
+
+class _MigrationDrill:
+    """Shared drill state: current phase, the per-request evidence rows,
+    session workers with staggered starts and fixed prefixes."""
+
+    def __init__(self, args, mode):
+        self.args, self.mode = args, mode
+        self.router = args.router.rstrip("/")
+        self.phase = "warmup"
+        self.t0 = time.monotonic()
+        self.rows = []
+        self.errors = 0
+        self._lock = threading.Lock()
+        self.stop = threading.Event()
+
+    def rel(self):
+        return round(time.monotonic() - self.t0, 2)
+
+    def record(self, sid, r):
+        with self._lock:
+            if not r["ok"]:
+                self.errors += 1
+                self.rows.append([self.rel(), sid, self.phase, self.mode,
+                                  "", "", "", "", "", ""])
+                return
+            self.rows.append([self.rel(), sid, self.phase, self.mode,
+                              r["replica"], r["route_reason"], r["cache"],
+                              r["server_ttft_ms"], r["client_ttft_ms"],
+                              r["prompt_tokens"]])
+
+    def session(self, sid, start_delay):
+        prefix = _session_prefix(sid, self.args.prefix_tokens)
+        if self.stop.wait(start_delay):
+            return
+        end = time.monotonic() + self.args.session_len_s
+        period = 1.0 / self.args.rps_per_session
+        n = 0
+        while not self.stop.is_set() and time.monotonic() < end:
+            n += 1
+            self.record(sid, _mig_request(self.router, self.args.model,
+                                          f"{prefix} turn {n}"))
+            self.stop.wait(period)
+
+
+def _migrate_once(args, mode) -> dict:
+    router = args.router.rstrip("/")
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    drill = _MigrationDrill(args, mode)
+    timeline = []
+
+    def mark(event, detail=""):
+        timeline.append((drill.rel(), event, detail))
+        print(f"  [{timeline[-1][0]:7.2f}s] {event:16s} {detail}")
+
+    print(f"migrate drill mode={mode}: {args.source} → {args.target} "
+          f"via {router} (model {args.model}, {args.sessions} sessions × "
+          f"{args.session_len_s:.0f}s)")
+    stagger = args.warmup_s / max(1, args.sessions)
+    threads = []
+    for sid in range(args.sessions):
+        t = threading.Thread(target=drill.session, args=(sid, sid * stagger),
+                             daemon=True)
+        t.start()
+        threads.append(t)
+    mark("load_start", f"{args.sessions} sessions staggered {stagger:.1f}s, "
+                       f"{args.rps_per_session} rps each, "
+                       f"prefix {args.prefix_tokens} tokens")
+    time.sleep(args.warmup_s)   # warm KV on the source first
+
+    resp = _post(f"{router}/v1/migrations",
+                 {"model": args.model, "source": args.source,
+                  "target": args.target, "mode": mode,
+                  "weight": args.weight})
+    mig_id = resp["migration_id"]
+    mig_start_rel = drill.rel()
+    drill.phase = "during"
+    mark("migrate_start", f"{mig_id} mode={mode} weight={args.weight} "
+                          f"snapshot={resp['source_snapshot']}")
+
+    drained_s = ""
+    try:
+        deadline = time.monotonic() + args.timeout_s
+        while time.monotonic() < deadline:
+            time.sleep(1.0)
+            cur = _get_json(f"{router}/v1/migrations/current")
+            if cur.get("state") == "drained":
+                drained_s = round(drill.rel() - mig_start_rel, 2)
+                drill.phase = "drained"
+                mark("drained", f"after {drained_s}s "
+                                f"(routed {cur.get('routed')})")
+                break
+            if cur.get("state") == "idle":
+                mark("vanished", "migration went idle without draining")
+                break
+        else:
+            mark("timeout", f"never DRAINED within {args.timeout_s}s")
+
+        if drained_s != "":
+            if mode == "graceful":
+                # the designed operator flow: complete once drained
+                _try_post(f"{router}/v1/migrations/{mig_id}/complete", {})
+                mark("complete", "graceful migration completed at DRAINED")
+            drill.phase = "after"
+            mark("after_probes", f"{args.sessions} probes, one per "
+                                 "session prefix")
+            for sid in range(args.sessions):
+                drill.record(sid, _mig_request(
+                    router, args.model,
+                    f"{_session_prefix(sid, args.prefix_tokens)} turn after"))
+            if mode == "immediate":
+                # cleanup: abort lifts the sticky source quarantine the
+                # immediate start set — never leave the pool excluded
+                _try_post(f"{router}/v1/migrations/{mig_id}/abort", {})
+                mark("abort_cleanup", "source quarantine lifted")
+    finally:
+        drill.stop.set()
+        try:
+            cur = _get_json(f"{router}/v1/migrations/current")
+        except (urllib.error.URLError, OSError, ValueError):
+            cur = None
+        if cur and cur.get("state") in ("migrating", "drained"):
+            _try_post(f"{router}/v1/migrations/{cur['id']}/abort", {})
+            mark("abort_cleanup", "active migration aborted on exit")
+    for t in threads:
+        t.join(timeout=5)
+    return _migrate_record(args, mode, stamp, drill, timeline, drained_s)
+
+
+def _migrate_record(args, mode, stamp, drill, timeline, drained_s) -> dict:
+    raw_dir = os.path.join(REPO, "benchmarks", "raw")
+    os.makedirs(raw_dir, exist_ok=True)
+    detail = os.path.join(raw_dir, f"migration_{mode}_{stamp}.csv")
+    with open(detail, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["t_rel_s", "session_id", "phase", "mode", "replica",
+                    "route_reason", "cache", "server_ttft_ms",
+                    "client_ttft_ms", "prompt_tokens"])
+        w.writerows(drill.rows)
+    tl_path = os.path.join(raw_dir, f"migration_timeline_{mode}_{stamp}.csv")
+    with open(tl_path, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["t_rel_s", "event", "detail"])
+        w.writerows(timeline)
+
+    def phase_ttfts(phase):
+        return [r[8] for r in drill.rows if r[2] == phase and r[8] != ""]
+
+    row = {"stamp": stamp, "mode": mode}
+    for ph in ("warmup", "during", "drained", "after"):
+        vals = phase_ttfts(ph)
+        row[f"{ph}_ttft_p50_ms"] = _pctl(vals, 50)
+        row[f"{ph}_ttft_p95_ms"] = _pctl(vals, 95)
+    # re-prefills: ONLY sessions that were already warm when the migration
+    # started and are then forced to recompute their prefix on the TARGET.
+    # New sessions' first prefills happen wherever they land and are counted
+    # separately — conflating the two hides the graceful-vs-immediate story.
+    warm_sessions = {r[1] for r in drill.rows if r[2] == "warmup"}
+    migrated_cold = [
+        r for r in drill.rows
+        if r[2] in ("during", "drained", "after")
+        and r[4] == args.target and r[6] == "miss"]
+    row["re_prefill_count"] = sum(
+        1 for r in migrated_cold if r[1] in warm_sessions)
+    row["new_session_first_prefills"] = sum(
+        1 for r in migrated_cold if r[1] not in warm_sessions)
+    # The customer-facing cohort: sessions HOMED ON THE SOURCE at migration
+    # start (the two-pool ring homes ~half the sessions on the target
+    # natively — those never migrate and must not dilute the comparison).
+    # For this cohort, mid-conversation experience is the whole story:
+    # graceful should show zero live misses; immediate shows one forced
+    # re-prefill per session, mid-conversation.
+    src_homed = {r[1] for r in drill.rows
+                 if r[2] == "warmup" and r[4] == args.source}
+    cohort_live = [r for r in drill.rows
+                   if r[2] in ("during", "drained") and r[1] in src_homed]
+    cohort_ttft = [r[8] for r in cohort_live if r[8] != ""]
+    cohort_miss = [r[8] for r in cohort_live
+                   if r[6] == "miss" and r[8] != ""]
+    cohort_hit = [r[8] for r in cohort_live
+                  if r[6] == "hit" and r[8] != ""]
+    row["cohort_sessions"] = len(src_homed)
+    row["cohort_live_requests"] = len(cohort_live)
+    row["cohort_mid_conversation_re_prefills"] = len(cohort_miss)
+    row["cohort_ttft_p95_ms"] = _pctl(cohort_ttft, 95)
+    row["cohort_hit_ttft_p50_ms"] = _pctl(cohort_hit, 50)
+    row["cohort_miss_ttft_p50_ms"] = _pctl(cohort_miss, 50)
+    row["drained_s"] = drained_s
+    row["requests"] = len(drill.rows)
+    row["errors"] = drill.errors
+    summary = os.path.join(raw_dir, "migration_drills.csv")
+    new = not os.path.exists(summary)
+    with open(summary, "a", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=list(row))
+        if new:
+            w.writeheader()
+        w.writerow(row)
+    print(f"  evidence: {os.path.relpath(detail, REPO)}  +  "
+          f"{os.path.relpath(tl_path, REPO)}  +  "
+          f"{os.path.relpath(summary, REPO)}")
+    return row
+
+
+def cmd_migrate(args):
+    modes = ["graceful", "immediate"] if args.mode == "both" else [args.mode]
+    results = []
+    for i, mode in enumerate(modes):
+        if i:
+            print(f"cooldown {args.cooldown_s}s between modes…")
+            time.sleep(args.cooldown_s)
+        results.append(_migrate_once(args, mode))
+    print("\nmigration drill summary:")
+    for r in results:
+        drained = f"{r['drained_s']}s" if r["drained_s"] != "" else "NEVER"
+        print(f"  {r['mode']:9s} drained {drained:>8s}  "
+              f"cohort({r['cohort_sessions']} src-homed sessions): "
+              f"mid-conversation re-prefills {r['cohort_mid_conversation_re_prefills']}, "
+              f"ttft p95 {r['cohort_ttft_p95_ms']}ms "
+              f"(hit p50 {r['cohort_hit_ttft_p50_ms']} / miss p50 {r['cohort_miss_ttft_p50_ms']})  "
+              f"requests {r['requests']}  errors {r['errors']}")
+    if any(r["mode"] == "graceful" and r["drained_s"] == "" for r in results):
+        sys.exit("migrate FAILED: graceful migration never reached DRAINED "
+                 f"within --timeout-s {args.timeout_s}")
+
+
 def cmd_deactivate_baseten(args):
     argv = [sys.executable, os.path.join(REPO, "deploy/baseten/manage.py"),
             "deactivate", args.deployment_id, "--model-id", args.model_id]
@@ -384,6 +674,39 @@ def main(argv=None):
     dr.add_argument("--cooldown-s", type=float, default=35.0,
                     help="gap between suite scenarios (> agent cooldown)")
     dr.set_defaults(fn=cmd_drill)
+
+    mg = sub.add_parser("migrate", help="KV-affinity migration drill: "
+                                        "sessioned prefix load, graceful "
+                                        "and/or immediate migration, "
+                                        "per-phase TTFT + re-prefill CSVs")
+    mg.add_argument("--router", default="http://localhost:8090")
+    mg.add_argument("--model", default="qwen3-8b")
+    mg.add_argument("--source", default="baseten-l4")
+    mg.add_argument("--target", default="vllm-l4",
+                    help="needs the two-pool drill overlay: "
+                         "ROUTING_POLICY_SRC=configs/routing-policy.drill.yaml "
+                         "KV_TTL_S=20 ./scripts/run_local_stack.sh")
+    mg.add_argument("--mode", choices=["graceful", "immediate", "both"],
+                    default="both",
+                    help="both = graceful then immediate, sequential")
+    mg.add_argument("--sessions", type=int, default=12)
+    mg.add_argument("--session-len-s", type=float, default=90.0,
+                    help="per-session lifetime; starts are staggered "
+                         "across --warmup-s")
+    mg.add_argument("--prefix-tokens", type=int, default=32,
+                    help="fixed shared prefix per session (>= the router's "
+                         "affinity prefix_tokens so the whole hash window "
+                         "is covered)")
+    mg.add_argument("--rps-per-session", type=float, default=0.5)
+    mg.add_argument("--weight", type=float, default=1.0,
+                    help="share of new prefixes steered to target, (0,1]")
+    mg.add_argument("--warmup-s", type=float, default=20.0)
+    mg.add_argument("--timeout-s", type=float, default=240.0,
+                    help="graceful must reach DRAINED within this or the "
+                         "drill exits nonzero (allow session-len-s + the "
+                         "router's KV TTL + slack)")
+    mg.add_argument("--cooldown-s", type=float, default=10.0)
+    mg.set_defaults(fn=cmd_migrate)
 
     d = sub.add_parser("deactivate-baseten")
     d.add_argument("deployment_id")

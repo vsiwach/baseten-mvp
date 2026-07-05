@@ -42,6 +42,16 @@ class KVState:
             return sum(1 for e in self._holds.get(replica, {}).values()
                        if e > now)
 
+    def ttl_horizon_s(self, replica: str, now: float | None = None) -> float:
+        """Seconds until the LAST unexpired prefix on this replica expires —
+        the upper bound on how long a graceful migration's drain can take
+        if no request refreshes a prefix. 0 if the replica holds nothing."""
+        now = self._clock() if now is None else now
+        with self._lock:
+            expiries = [e for e in self._holds.get(replica, {}).values()
+                        if e > now]
+        return round(max(expiries) - now, 2) if expiries else 0.0
+
     # --- load -----------------------------------------------------------
     def pending(self, replica: str) -> int:
         with self._lock:

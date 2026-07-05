@@ -1,0 +1,6 @@
+t_rel_s,event,detail
+0.0,load_start,"12 sessions staggered 1.7s, 0.5 rps each, prefix 512 tokens"
+20.01,migrate_start,"mig-0001 mode=graceful weight=1.0 snapshot={'live_prefixes': 5, 'in_flight': 2}"
+126.73,drained,"after 106.72s (routed {'target_new': 191, 'source_warm': 193})"
+126.73,complete,graceful migration completed at DRAINED
+126.73,after_probes,"12 probes, one per session prefix"

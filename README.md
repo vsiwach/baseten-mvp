@@ -142,14 +142,16 @@ per-request to api.baseten.co only.
 ```
 configs/            routing policy, placement, release, model registry (plain YAML)
 services/router/    the control plane: policy, health, metrics, incident agent,
-                    devboard endpoints, episode recording   [113 tests]
+                    KV-affinity migration, devboard endpoints, episode
+                    recording   [174 tests]
 services/llm/       pool proxy: adapters (Baseten Truss / Model APIs / vLLM),
                     catalog mux, chaos gate, faithful sim   [52 tests]
 deploy/baseten/     working Truss (vllm-truss/), management CLI, catalog,
                     runbooks + failure forensics
 deploy/runpod/      budget-guarded pod lifecycle for the vendor-neutral slot
 learning/           episode schema + backfilled real episodes + RL-loop plan
-tools/chaos.py      fault injection + scripted MTTR drills (evidence writer)
+tools/chaos.py      fault injection + scripted MTTR / KV-migration drills
+                    (evidence writer)
 tools/kb/           docs corpus + search behind the baseten-docs agent
 benchmarks/         load harness + raw/ (every number's source of truth)
 evals/              the three adversarial eval agents' verdicts + evidence

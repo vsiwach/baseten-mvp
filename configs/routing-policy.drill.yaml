@@ -1,0 +1,57 @@
+# Migration-drill routing overlay — NOT the default policy.
+#
+# Used by tools/chaos.py migrate: qwen3-8b routes to exactly TWO sim pools
+# (baseten-l4 + vllm-l4, both booted by scripts/run_local_stack.sh) so a
+# source→target KV-affinity migration has a real second pool, and the
+# router-side KV TTL is short (cache.ttl_s → kvstate.kv_ttl_s = 20 s) so a
+# graceful drain completes inside a drill instead of the production 300 s.
+# Pair it with KV_TTL_S=20 on the sim pools:
+#
+#   ROUTING_POLICY_SRC=configs/routing-policy.drill.yaml KV_TTL_S=20 \
+#     ./scripts/run_local_stack.sh
+#   python3 tools/chaos.py migrate --source baseten-l4 --target vllm-l4
+#
+# configs/routing-policy.yaml stays the default; this file never ships to a
+# deploy target.
+tiers:
+  realtime: {max_latency_ms: 250, prefer: lowest_latency, ttft_ms: 500, tpot_ms: 60}
+  interactive: {max_latency_ms: 1000, prefer: lowest_latency, ttft_ms: 800, tpot_ms: 60}
+  standard: {max_latency_ms: 2000, prefer: lowest_cost, ttft_ms: 2000, tpot_ms: 80}
+  batch: {max_latency_ms: null, prefer: lowest_cost, queue: true}
+
+cost_table:
+  gcp-cloudrun-cpu: 0.40
+  aws-apprunner-cpu: 0.46
+  local-docker: 0.10
+  baseten-l4: 1.05
+  runpod-vllm-l4: 0.60
+  baseten-model-api: 3.00
+
+# short TTL is the point: router kvstate.kv_ttl_s follows cache.ttl_s
+cache: {enabled: true, ttl_s: 20, backend: in_memory}
+
+affinity: {enabled: true, prefix_tokens: 32, strategy: consistent_hash, capacity: 8}
+
+endpoints:
+  # the drill pair — two pools, one model, no third hash peer so the
+  # migration evidence is unambiguous
+  qwen3-8b:
+    - id: baseten-l4
+      provider: baseten-l4
+      pool: baseten-l4
+      url: http://pool-baseten:8080
+      model_id: 3ydn1e43
+      deployment_id: qvm1v4e
+    - id: vllm-l4
+      provider: runpod-vllm-l4
+      pool: vllm-l4
+      url: http://pool-vllm:8080
+  # catalog aliases kept so the rest of the stack (assist, mux drills)
+  # still works while the overlay is active
+  glm-4.7:
+    - id: model-api-a
+      provider: baseten-model-api
+      url: http://pool-model-api-a:8080
+    - id: model-api-b
+      provider: baseten-model-api
+      url: http://pool-model-api-b:8080

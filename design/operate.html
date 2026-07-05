@@ -52,6 +52,20 @@
     </div>
   </section>
 
+  <!-- Migration progress strip — hidden unless /v1/migrations/current is
+       active; existing package classes (card/pill/caption/num) only -->
+  <section class="card" id="migration-strip" aria-label="Live migration" style="display:none; padding: var(--s-2) var(--s-4)">
+    <div style="display:flex; align-items:center; gap: var(--s-4)">
+      <span class="pill" data-status="warn" id="mig-state"><span class="dot"></span>migrating</span>
+      <span class="num" id="mig-route" style="font-weight:600"></span>
+      <span class="caption num" id="mig-stats"></span>
+      <div style="flex:1; height:4px; border-radius:2px; background:var(--bg-inset); overflow:hidden" role="img" aria-label="Migration progress">
+        <div id="mig-bar" style="height:4px; width:0%; background:var(--accent)"></div>
+      </div>
+      <span class="caption num" id="mig-pct"></span>
+    </div>
+  </section>
+
   <!-- Pools + right rail -->
   <section class="split" style="grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr)">
 
@@ -116,6 +130,34 @@
 <script>
 (async () => {
   await renderShell("Operate");
+
+  /* Migration progress strip — polls /v1/migrations/current every 3 s and
+     renders only while a migration is active (mock ships state:"idle"). */
+  const strip = document.getElementById("migration-strip");
+  async function pollMigration() {
+    try {
+      const m = await fetchJSON("/v1/migrations/current");
+      if (!m || m.state === "idle" || !["migrating", "drained"].includes(m.state)) {
+        strip.style.display = "none";
+      } else {
+        strip.style.display = "";
+        const pct = (m.progress_pct ?? 0).toFixed(0);
+        const st = document.getElementById("mig-state");
+        st.dataset.status = m.state === "drained" ? "ok" : "warn";
+        st.innerHTML = '<span class="dot"></span>' + esc(m.state);
+        document.getElementById("mig-route").textContent =
+          m.source + " → " + m.target + " (" + m.mode + ")";
+        document.getElementById("mig-stats").textContent =
+          "live prefixes " + m.live_prefixes_remaining + " · in-flight " + m.in_flight +
+          " · ttl horizon " + m.ttl_horizon_s + "s · new→target " + m.routed.target_new +
+          " · warm-on-source " + m.routed.source_warm;
+        document.getElementById("mig-bar").style.width = pct + "%";
+        document.getElementById("mig-pct").textContent = pct + "%";
+      }
+    } catch (e) { strip.style.display = "none"; }
+    setTimeout(pollMigration, 3000);
+  }
+  pollMigration();
 
   const [hero, slo, pools, feed, incidents, evalr] = await Promise.all([
     fetchJSON("/v1/metrics/hero"), fetchJSON("/v1/metrics/slo"),

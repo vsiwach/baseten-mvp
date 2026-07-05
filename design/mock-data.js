@@ -60,6 +60,10 @@ window.MOCK = {
     ]
   },
 
+  /* GET /v1/migrations/current — idle in the mock; the operate strip and
+     the manage confirm modal only render an ACTIVE migration (live router) */
+  "/v1/migrations/current": { state: "idle" },
+
   /* GET /v1/pools */
   "/v1/pools": {
     pools: [
