@@ -122,10 +122,55 @@
     modal.classList.add("open");
   }
   document.getElementById("confirm-cancel").addEventListener("click", () => modal.classList.remove("open"));
-  document.getElementById("confirm-go").addEventListener("click", () => {
-    modal.classList.remove("open");
-    selected = null;
-    render();
+
+  /* Live apply: fleet/model go through the gated two-step writes handshake
+     (token bound to the exact previewed mutation); spill re-applies the
+     previewed placement policy (the no-op default). Gate/endpoint errors —
+     including the designed off-by-default 403 — render verbatim in the
+     modal. Canonicalization mirrors writes.py (sorted keys, no spaces). */
+  async function sha256Hex(s) {
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+  const canonical = obj =>
+    JSON.stringify(Object.fromEntries(Object.entries(obj).sort(([a], [b]) => a < b ? -1 : 1)));
+
+  document.getElementById("confirm-go").addEventListener("click", async () => {
+    if (!selected) { modal.classList.remove("open"); return; }
+    const { option } = selected;
+    const fail = t => { document.getElementById("confirm-summary").textContent = t; };
+    try {
+      const [reqLine, ...bodyLines] = option.mutation_preview.split("\n");
+      const bodyText = bodyLines.join("\n").trim();
+      const previewBody = bodyText ? JSON.parse(bodyText) : {};
+      let resp;
+      if (option.kind === "spill") {
+        resp = await fetch("/v1/policy/placement", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(previewBody)
+        });
+      } else {
+        const ids = reqLine.match(/\/models\/([A-Za-z0-9_-]+)\/deployments\/([A-Za-z0-9_-]+)/);
+        if (!ids) { fail("no deployment ids in the mutation preview"); return; }
+        const op = option.kind === "fleet" ? "autoscaling" : "promote";
+        const body = op === "autoscaling" ? previewBody : {};
+        const hash = await sha256Hex(canonical(body));
+        const tokResp = await fetch("/v1/writes/token?op=" + op +
+          "&model_id=" + ids[1] + "&deployment_id=" + ids[2] + "&body_sha256=" + hash);
+        const tok = await tokResp.json();
+        if (!tokResp.ok) { fail("writes gate (HTTP " + tokResp.status + "): " + JSON.stringify(tok)); return; }
+        resp = await fetch("/v1/writes/baseten", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ op, model_id: ids[1], deployment_id: ids[2],
+                                 body, token: tok.token, ts: tok.ts })
+        });
+      }
+      const result = await resp.json();
+      if (!resp.ok) { fail("apply failed (HTTP " + resp.status + "): " + JSON.stringify(result)); return; }
+      modal.classList.remove("open");
+      selected = null;
+      render();
+    } catch (e) { fail("apply failed: " + String(e)); }
   });
   modal.addEventListener("click", e => { if (e.target === modal) modal.classList.remove("open"); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") modal.classList.remove("open"); });

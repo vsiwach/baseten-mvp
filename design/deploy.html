@@ -38,11 +38,12 @@
   ]);
 
   document.getElementById("deploy-sub").innerHTML =
-    'targets tier <span class="num">' + esc(tl.tier_target) + '</span> · strategy <span class="num">' + esc(tl.strategy) + '</span>';
-  document.getElementById("tl-meta").innerHTML = '<span class="num">' + esc(tl.version) + '</span>';
+    'targets tier <span class="num">' + esc(tl.tier_target ?? "—") + '</span> · strategy <span class="num">' + esc(tl.strategy ?? "—") + '</span>';
+  document.getElementById("tl-meta").innerHTML = '<span class="num">' + esc(tl.version ?? tl.model ?? "—") + '</span>';
 
   const outcomeMeta = {
     rolled_back: { label: "rolled back", color: "var(--bad)",  bg: "var(--bad-bg)",  border: "var(--bad-border)",  text: "var(--bad-text)" },
+    failed:      { label: "failed",      color: "var(--bad)",  bg: "var(--bad-bg)",  border: "var(--bad-border)",  text: "var(--bad-text)" },
     passed:      { label: "passed",      color: "var(--ok)",   bg: "var(--ok-bg)",   border: "var(--ok-border)",   text: "var(--accent-strong)" },
     live:        { label: "live",        color: "var(--ok)",   bg: "var(--ok-bg)",   border: "var(--ok-border)",   text: "var(--accent-strong)" }
   };
@@ -73,7 +74,7 @@
       '<dt class="caption">version</dt><dd class="num" style="margin:0">' + esc(active.version) + '</dd>' +
       '<dt class="caption">model</dt><dd class="num" style="margin:0">' + esc(active.model) + '</dd>' +
       '<dt class="caption">strategy</dt><dd class="num" style="margin:0">' + esc(active.strategy) + '</dd>' +
-      '<dt class="caption">tier target</dt><dd class="num" style="margin:0">' + esc(tl.tier_target) + '</dd>' +
+      '<dt class="caption">tier target</dt><dd class="num" style="margin:0">' + esc(tl.tier_target ?? "—") + '</dd>' +
     '</dl>' +
     '<p class="caption" style="margin:var(--s-3) 0 0">Prior build kept warm for instant rollback. Guardrail probes run against the tier SLO of record.</p>';
 })();

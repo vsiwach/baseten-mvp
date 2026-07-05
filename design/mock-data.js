@@ -135,8 +135,8 @@ window.MOCK = {
       escalate_after_failures: 4
     },
     holdout: {
-      default:  { mttr_p50: 61.0, escalations: 9, probes: 1240 },
-      proposed: { mttr_p50: 42.5, escalations: 7, probes: 1615 }
+      default:  { mttr_mean_s: 61.0, escalations: 9, probes: 1240 },
+      proposed: { mttr_mean_s: 42.5, escalations: 7, probes: 1615 }
     },
     reward_curve: [-1.42,-1.31,-1.18,-1.02,-0.94,-0.81,-0.72,-0.66,-0.58,-0.49,-0.44,-0.41,-0.36,-0.34,-0.31,-0.29,-0.28,-0.26,-0.25,-0.25]
   },

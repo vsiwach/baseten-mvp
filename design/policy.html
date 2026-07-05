@@ -101,16 +101,17 @@
         : '<span class="caption">unchanged</span>') + '</td></tr>';
   }).join("");
 
-  /* Reward curve */
-  document.getElementById("reward").innerHTML =
-    lineChart(ev.reward_curve) +
-    '<div class="caption" style="margin-top:6px; display:flex; justify-content:space-between">' +
-      '<span>iteration 1</span><span class="num">final reward ' + ev.reward_curve[ev.reward_curve.length - 1].toFixed(2) + '</span>' +
-      '<span>iteration ' + ev.reward_curve.length + '</span></div>';
+  /* Reward curve (live corpora may not have taped episodes yet — no curve) */
+  document.getElementById("reward").innerHTML = ev.reward_curve.length
+    ? lineChart(ev.reward_curve) +
+      '<div class="caption" style="margin-top:6px; display:flex; justify-content:space-between">' +
+        '<span>iteration 1</span><span class="num">final reward ' + ev.reward_curve[ev.reward_curve.length - 1].toFixed(2) + '</span>' +
+        '<span>iteration ' + ev.reward_curve.length + '</span></div>'
+    : '<p class="caption" style="margin:0">no reward curve in this corpus yet</p>';
 
   /* Holdout */
   const d = ev.holdout.default, p = ev.holdout.proposed;
-  const impr = (p.mttr_p50 - d.mttr_p50) / d.mttr_p50 * 100;
+  const impr = d.mttr_mean_s ? (p.mttr_mean_s - d.mttr_mean_s) / d.mttr_mean_s * 100 : 0;
   const row = (label, dv, pv, betterLow) => {
     const better = betterLow ? pv < dv : pv > dv;
     return '<tr><td class="caption">' + label + '</td>' +
@@ -119,13 +120,13 @@
   };
   document.getElementById("holdout").innerHTML =
     '<div style="text-align:center; padding: var(--s-2) 0 var(--s-4)">' +
-      '<div class="caption">MTTR p50</div>' +
+      '<div class="caption">MTTR mean</div>' +
       '<div class="num" style="font-size:var(--fs-kpi); font-weight:500; letter-spacing:-0.02em">' +
-        d.mttr_p50.toFixed(1) + 's <span style="color:var(--text-faint)">→</span> <span style="color:var(--accent-strong)">' + p.mttr_p50.toFixed(1) + 's</span></div>' +
+        d.mttr_mean_s.toFixed(1) + 's <span style="color:var(--text-faint)">→</span> <span style="color:var(--accent-strong)">' + p.mttr_mean_s.toFixed(1) + 's</span></div>' +
       '<div style="margin-top:4px">' + deltaChip(impr) + '</div>' +
     '</div>' +
     '<table class="data" style="font-size:var(--fs-label)"><thead><tr><th></th><th class="num">current</th><th class="num">proposed</th></tr></thead><tbody>' +
-      row("mttr p50 (s)", d.mttr_p50, p.mttr_p50, true) +
+      row("mttr mean (s)", d.mttr_mean_s, p.mttr_mean_s, true) +
       row("escalations", d.escalations, p.escalations, true) +
       row("probes issued", d.probes, p.probes, true) +
     '</tbody></table>' +
@@ -140,10 +141,27 @@
     "POST /v1/learning/policy/promote\n" + JSON.stringify({ config: ev.proposed_config, approver: "required" }, null, 2);
   promote.addEventListener("click", () => modal.classList.add("open"));
   document.getElementById("confirm-cancel").addEventListener("click", () => modal.classList.remove("open"));
-  document.getElementById("confirm-go").addEventListener("click", () => {
-    modal.classList.remove("open");
-    promote.textContent = "Promotion requested — awaiting approver";
-    promote.disabled = true;
+  document.getElementById("confirm-go").addEventListener("click", async () => {
+    /* Live promote: records the proposal for a human approver (no hot-apply).
+       Gate/endpoint errors surface verbatim in the modal. */
+    try {
+      const resp = await fetch("/v1/learning/policy/promote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ config: ev.proposed_config, approver: "required" })
+      });
+      const body = await resp.json();
+      if (resp.ok && body.status === "awaiting_approver") {
+        modal.classList.remove("open");
+        promote.textContent = "Promotion requested — awaiting approver";
+        promote.disabled = true;
+      } else {
+        document.getElementById("confirm-mutation").textContent =
+          "promote failed (HTTP " + resp.status + "):\n" + JSON.stringify(body, null, 2);
+      }
+    } catch (e) {
+      document.getElementById("confirm-mutation").textContent = "promote failed: " + String(e);
+    }
   });
   modal.addEventListener("click", e => { if (e.target === modal) modal.classList.remove("open"); });
   document.addEventListener("keydown", e => { if (e.key === "Escape") modal.classList.remove("open"); });

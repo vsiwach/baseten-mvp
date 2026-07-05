@@ -46,6 +46,10 @@ class RouterState:
         self.metrics = MetricsWindow()
         self.incidents = IncidentStore(emit=self.events.emit)
         self.release = None            # F5 wires live canary control
+        # ground-truth fault windows written by /v1/dev/chaos — the incident
+        # agent's tape recorder reads these to attach replayable tapes to
+        # resolved-incident episodes (learning.py / replay.py)
+        self.chaos_windows: dict[str, dict] = {}
         self.goodput_curves = self._load_goodput_curves()
         self.reload()
         self.poller = HealthPoller(
@@ -699,6 +703,44 @@ def get_app(registry_path: Path | None = None,
         return FileResponse(_repo_root / "demo" / name,
                             media_type=allowed[name])
 
+    # ---- reliability console (design/ package wired to live data) --------
+    # design/*.html is the design source of truth; serving it with
+    # live-fetch.js layered over console.js IS the integration — no copies,
+    # no restyling (design/DESIGN.md, 2026-07-04 deviations).
+    _design_dir = _repo_root / "design"
+    _board_pages = ("operate", "deploy", "policy", "manage", "roadmap")
+    _board_assets = {"tokens.css": "text/css", "shell.css": "text/css",
+                     "console.js": "application/javascript",
+                     "mock-data.js": "application/javascript",
+                     "live-fetch.js": "application/javascript"}
+
+    @app.get("/board/{page}")
+    def board_page(page: str):
+        from fastapi.responses import HTMLResponse
+        if page not in _board_pages:
+            return _error(404, "unknown_page", page)
+        html = (_design_dir / f"{page}.html").read_text()
+        html = (html
+                .replace('href="tokens.css"', 'href="/board-assets/tokens.css"')
+                .replace('href="shell.css"', 'href="/board-assets/shell.css"')
+                .replace('src="console.js"', 'src="/board-assets/console.js"')
+                .replace('src="mock-data.js"',
+                         'src="/board-assets/mock-data.js"')
+                .replace('<script src="/board-assets/console.js"></script>',
+                         '<script src="/board-assets/console.js"></script>\n'
+                         '<script src="/board-assets/live-fetch.js"></script>'))
+        for p in _board_pages:  # in-page links (nav tabs move in live-fetch.js)
+            html = html.replace(f'href="{p}.html"', f'href="/board/{p}"')
+        return HTMLResponse(html)
+
+    @app.get("/board-assets/{name}")
+    def board_asset(name: str):
+        from fastapi.responses import FileResponse
+        if name not in _board_assets:
+            return _error(404, "unknown_asset", name)
+        return FileResponse(_design_dir / name,
+                            media_type=_board_assets[name])
+
     @app.get("/replay/")
     def replay_page():
         from fastapi.responses import HTMLResponse
@@ -849,6 +891,73 @@ def get_app(registry_path: Path | None = None,
                     return out
         return out
 
+    @app.get("/v1/learning/policy-eval")
+    def learning_policy_eval(raw: int = 0):
+        """Latest offline policy evaluation (learning/evaluate.py output),
+        adapted to the design package's contract; ?raw=1 returns the Phase-B
+        artifact untouched. POLICY_EVAL_PATH overrides the repo-root default
+        (tests)."""
+        path = Path(os.environ.get(
+            "POLICY_EVAL_PATH",
+            _repo_root / "learning" / "policy-eval.json"))
+        try:
+            data = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return {"available": False}
+        if raw:
+            data["available"] = True
+            return data
+        return devboard.policy_eval_shape(data)
+
+    def _pending_policy_path() -> Path:
+        return Path(os.environ.get(
+            "PENDING_POLICY_PATH",
+            _repo_root / "learning" / "pending-policy.json"))
+
+    @app.post("/v1/learning/policy/promote")
+    async def policy_promote(request: Request):
+        """Governed promote: records the proposal for a human approver. NO
+        hot-apply — the live AgentConfig is untouched until a human acts on
+        learning/pending-policy.json (CLAUDE.md rule 5: learning tunes
+        parameters through governance, never directly)."""
+        from dataclasses import fields as dc_fields
+        from router_app.incident_agent import AgentConfig
+        try:
+            body = await request.json()
+        except json.JSONDecodeError:
+            return _error(400, "invalid_json", "request body must be JSON")
+        config = body.get("config")
+        if not isinstance(config, dict):
+            return _error(400, "invalid_config", "body needs a 'config' object")
+        expected = {f.name for f in dc_fields(AgentConfig)}
+        if set(config) != expected:
+            return _error(400, "invalid_config",
+                          f"config keys must be exactly {sorted(expected)}",
+                          unexpected=sorted(set(config) ^ expected))
+        bad = [k for k, v in config.items()
+               if isinstance(v, bool) or not isinstance(v, (int, float))]
+        if bad:
+            return _error(400, "invalid_config",
+                          f"non-numeric values for: {sorted(bad)}")
+        record = {"config": config,
+                  "proposed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                               time.gmtime()),
+                  "status": "awaiting_approver"}
+        path = _pending_policy_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(record, indent=2))
+        state.events.emit("policy_promote_proposed",
+                          approver=body.get("approver"),
+                          keys=sorted(config))
+        return {"status": "awaiting_approver"}
+
+    @app.get("/v1/learning/policy/pending")
+    def policy_pending():
+        try:
+            return json.loads(_pending_policy_path().read_text())
+        except (OSError, json.JSONDecodeError):
+            return {"status": "none"}
+
     # ---- devboard data surface (contracts/devboard.openapi.yaml) ----------
     # Shapes come from router_app/devboard.py builders over live state; the
     # board renders ONLY what the router measured (SLO-AUDITOR provenance).
@@ -875,12 +984,13 @@ def get_app(registry_path: Path | None = None,
         ctx = _board_ctx()
         if ctx is None:
             return {"pools": []}
-        _, replicas, _, tier_rules = ctx
+        _, replicas, entry, tier_rules = ctx
         return devboard.slo_panel(
             state.metrics, replicas, tier_rules,
             is_usable=lambda u: state.poller.status_for(u).usable,
             pending_of=state.kvstate.pending,
-            goodput_curves=state.goodput_curves)
+            goodput_curves=state.goodput_curves,
+            tier=entry.get("tier", "realtime"))
 
     @app.get("/v1/pools")
     def pools():
@@ -913,6 +1023,101 @@ def get_app(registry_path: Path | None = None,
                         yield f"data: {json.dumps(item)}\n\n"
                 time.sleep(0.25)
         return StreamingResponse(tail(), media_type="text/event-stream")
+
+    @app.get("/v1/placement/feed/snapshot")
+    def placement_feed_snapshot():
+        """Last 30 placement decisions as one JSON array — the console's
+        non-SSE lens over the same EventLog ring the SSE feed tails."""
+        items = [devboard.feed_item(ev)
+                 for ev in state.events.recent(30, "route")]
+        return [i for i in items if i]
+
+    @app.get("/v1/releases/timeline")
+    def releases_timeline():
+        """The recorded deploy trail (demo/deploy-timeline.json — a real
+        artifact) adapted to the console's timeline shape. DEPLOY_TIMELINE_PATH
+        overrides for tests."""
+        path = Path(os.environ.get("DEPLOY_TIMELINE_PATH",
+                                   _repo_root / "demo" / "deploy-timeline.json"))
+        try:
+            raw = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            return {"version": None, "model": None, "strategy": None,
+                    "tier_target": None, "attempts": [],
+                    "source": "no recorded deploy timeline found"}
+        return devboard.release_timeline(raw)
+
+    @app.get("/v1/manage/options")
+    def manage_options_route():
+        """Remediation options + drain plan for the managed pool(s), built
+        from live snapshots by the pure builder (manage_options.py)."""
+        from router_app import manage_options
+        ctx = _board_ctx()
+        if ctx is None:
+            return {"pools": []}
+        model, replicas, entry, _ = ctx
+        affinity = state.policy.get("affinity", {})
+        pools_snap = devboard.pools_snapshot(
+            state.metrics, replicas, entry,
+            is_usable=lambda u: state.poller.status_for(u).usable,
+            pending_of=state.kvstate.pending,
+            capacity=int(affinity.get("capacity", 8)))["pools"]
+
+        def _read_json(path: Path):
+            try:
+                return json.loads(path.read_text())
+            except (OSError, json.JSONDecodeError):
+                return None
+
+        return manage_options.build(
+            pools=pools_snap,
+            samples=state.metrics.window(900.0),
+            replicas=replicas,
+            registry_entry=entry,
+            events=[e for e in state.events.recent(500, "route")
+                    if e.get("model") == model],
+            placement=state.placement,
+            catalog=_read_json(_repo_root / "deploy" / "baseten"
+                               / "model-apis.json"),
+            timeline=_read_json(_repo_root / "demo" / "deploy-timeline.json"),
+            now=time.time(),
+            default_alias=os.environ.get("MODEL_API_DEFAULT"))
+
+    @app.post("/v1/pools/{pool_id}/drain")
+    def drain_pool(pool_id: str, mode: str = Query(default="graceful"),
+                   timeout_s: float = Query(default=30.0)):
+        """Minimal REAL drain. (1) Sticky-quarantine the pool — the existing
+        placement-exclusion mechanism; selection skips unusable pools, so no
+        new requests land here. (2) graceful: wait for the router's in-flight
+        count on the pool (kvstate.pending) to reach 0, bounded by timeout.
+        'immediate' = exclusion only. Sync def → threadpool, so the wait
+        never blocks the event loop. The KV-aware weighted drain is roadmap
+        (see /v1/manage/options drain steps)."""
+        ctx = _board_ctx()
+        rep = next((r for r in (ctx[1] if ctx else [])
+                    if r["id"] == pool_id), None)
+        if rep is None:
+            return _error(404, "unknown_pool", pool_id)
+        state.poller.status_for(rep["url"]).quarantined = True
+        state.events.emit("drain_started", pool=pool_id, mode=mode)
+        if mode != "graceful":
+            return {"status": "excluded", "pool": pool_id,
+                    "mode": "immediate",
+                    "pending": state.kvstate.pending(pool_id)}
+        start = time.monotonic()
+        deadline = start + min(timeout_s, 300.0)
+        while time.monotonic() < deadline:
+            if state.kvstate.pending(pool_id) == 0:
+                waited = round(time.monotonic() - start, 2)
+                state.events.emit("drain_complete", pool=pool_id,
+                                  waited_s=waited)
+                return {"status": "drained", "pool": pool_id,
+                        "mode": "graceful", "waited_s": waited}
+            time.sleep(0.2)
+        state.events.emit("drain_timeout", pool=pool_id,
+                          pending=state.kvstate.pending(pool_id))
+        return {"status": "timeout", "pool": pool_id, "mode": "graceful",
+                "pending": state.kvstate.pending(pool_id)}
 
     @app.get("/v1/releases/active")
     def releases_active():
@@ -950,6 +1155,8 @@ def get_app(registry_path: Path | None = None,
             return _error(404, "no_model", "no LLM model configured")
         targets = [r for r in ctx[1]
                    if body.get("pool_id") in (None, r["id"])]
+        lat = float(body.get("latency_ms") or 0)
+        err = float(body.get("error_rate") or 0)
         results = {}
         for rep in targets:
             try:
@@ -959,6 +1166,22 @@ def get_app(registry_path: Path | None = None,
                 results[rep["id"]] = r.json()
             except httpx.HTTPError as exc:
                 results[rep["id"]] = {"error": str(exc)}
+                continue
+            # ground-truth fault window for the episode tape recorder:
+            # any nonzero injection opens a window, all-zeros clears it
+            if lat > 0 or err > 0:
+                kind = ("combo" if lat > 0 and err > 0
+                        else "latency" if lat > 0 else "errors")
+                state.chaos_windows[rep["id"]] = {
+                    "injected_at": time.monotonic(),
+                    "injected_at_utc": time.time(),
+                    "cleared_at": None, "cleared_at_utc": None,
+                    "kind": kind}
+            else:
+                win = state.chaos_windows.get(rep["id"])
+                if win is not None and win.get("cleared_at") is None:
+                    win["cleared_at"] = time.monotonic()
+                    win["cleared_at_utc"] = time.time()
         state.events.emit("config_change", target="chaos-injection",
                           **{k: body.get(k) for k in
                              ("pool_id", "latency_ms", "error_rate")})
@@ -990,6 +1213,68 @@ def get_app(registry_path: Path | None = None,
         if inc is None:
             return _error(404, "unknown_incident", incident_id)
         return {"id": incident_id, "mttr_s": inc["mttr_s"]}
+
+    # ---- gated Baseten writes (writes.py holds the policy; routes are glue).
+    # Off by default: every /v1/writes/* 403s unless CONSOLE_ALLOW_WRITES=1.
+    from router_app import writes as writes_mod
+
+    def _writes_denied(reason: str, **fields) -> JSONResponse:
+        state.events.emit("baseten_write_denied", reason=reason, **fields)
+        return JSONResponse(status_code=403, content={"error": reason})
+
+    @app.get("/v1/writes/token")
+    def writes_token(op: str = Query(default=""),
+                     model_id: str = Query(default=""),
+                     deployment_id: str = Query(default=""),
+                     body_sha256: str = Query(default="")):
+        """Step 1 of the confirm handshake: a short-lived single-use token
+        bound to the exact (op, ids, body-hash) the console previewed."""
+        if not writes_mod.gate_open():
+            return _writes_denied("writes disabled", op=op)
+        err = writes_mod.validate_target(op, model_id, deployment_id)
+        if err:
+            return _writes_denied(err, op=op, model_id=model_id,
+                                  deployment_id=deployment_id)
+        ts = int(time.time())
+        token = writes_mod.mint(op, model_id, deployment_id, body_sha256, ts)
+        return {"token": token, "ts": ts, "ttl_s": writes_mod.TOKEN_TTL_S}
+
+    @app.post("/v1/writes/baseten")
+    async def writes_baseten(request: Request):
+        """Step 2: verify gate + allowlist + token, then call Baseten via
+        the injectable transport. The API key never appears in events or
+        responses (writes.py reads it inside the transport)."""
+        if not writes_mod.gate_open():
+            return _writes_denied("writes disabled")
+        try:
+            body = await request.json()
+        except json.JSONDecodeError:
+            return _writes_denied("request body must be JSON")
+        op = body.get("op", "")
+        model_id = body.get("model_id", "")
+        deployment_id = body.get("deployment_id", "")
+        payload = body.get("body") or {}
+        err = (writes_mod.validate_target(op, model_id, deployment_id)
+               or writes_mod.validate_body(op, payload))
+        if err:
+            return _writes_denied(err, op=op, model_id=model_id,
+                                  deployment_id=deployment_id)
+        state.events.emit("baseten_write_requested", op=op,
+                          model_id=model_id, deployment_id=deployment_id)
+        err = writes_mod.check_token(body.get("token"), body.get("ts"),
+                                     op, model_id, deployment_id, payload)
+        if err:
+            return _writes_denied(err, op=op, model_id=model_id,
+                                  deployment_id=deployment_id)
+        status, upstream, method, path = writes_mod.execute(
+            op, model_id, deployment_id, payload)
+        state.events.emit("baseten_write_executed", op=op,
+                          model_id=model_id, deployment_id=deployment_id,
+                          status=status, method=method, path=path,
+                          body=payload if op == "autoscaling" else None)
+        return JSONResponse(status_code=status,
+                            content={"upstream_status": status,
+                                     "body": upstream})
 
     return app
 

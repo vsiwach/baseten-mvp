@@ -58,9 +58,16 @@ def load_policy(path: Path | None = None) -> dict:
 
 def replicas_for(policy: dict, model: str) -> list[dict]:
     """Endpoint entries for a model as replica dicts: each gets a stable `id`
-    (defaults to the url) so the affinity ring and KV state can key on it."""
+    (defaults to the url) so the affinity ring and KV state can key on it.
+    Baseten management ids (model_id/deployment_id) ride along when the
+    endpoint entry declares them — manage-options previews and gated writes
+    use them; routing never does."""
     out = []
     for ep in policy.get("endpoints", {}).get(model, []):
-        out.append({"id": ep.get("id", ep["url"]), "provider": ep["provider"],
-                    "url": ep["url"]})
+        rep = {"id": ep.get("id", ep["url"]), "provider": ep["provider"],
+               "url": ep["url"]}
+        for extra in ("model_id", "deployment_id"):
+            if extra in ep:
+                rep[extra] = ep[extra]
+        out.append(rep)
     return out

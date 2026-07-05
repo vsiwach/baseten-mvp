@@ -85,9 +85,12 @@ def _health_of(samples, usable: bool) -> tuple[float, str]:
 
 def slo_panel(metrics: MetricsWindow, replicas: list[dict], tier_rules: dict,
               is_usable, pending_of, goodput_curves: dict | None = None,
-              now: float | None = None) -> dict:
+              now: float | None = None, tier: str | None = None) -> dict:
     """/v1/metrics/slo — per-pool percentiles + hist; goodput curve comes from
     the bench harness artifact (real measured curve), operating point is live.
+    `tier` (the registry tier name) + per-pool `slo` come from the routing
+    policy's tier rules so the SLO of record renders from config, never
+    hard-coded (design/DESIGN.md contract note 1).
     """
     samples = metrics.window(SLO_WINDOW_S, now)
     by_replica = MetricsWindow.by_replica(samples)
@@ -103,6 +106,9 @@ def slo_panel(metrics: MetricsWindow, replicas: list[dict], tier_rules: dict,
         ttft["slo"] = tier_rules.get("ttft_ms", 0)
         tpot["slo"] = tier_rules.get("tpot_ms", 0)
         pool = {"id": rid, "health": health, "status": status,
+                "tier": tier,
+                "slo": {"ttft_p99_ms": tier_rules.get("ttft_ms", 0),
+                        "tpot_p99_ms": tier_rules.get("tpot_ms", 0)},
                 "ttft": ttft, "tpot": tpot}
         curve = (goodput_curves or {}).get(rid)
         pool_op = [s for s in op_samples if s.replica == rid and s.slo_met]
@@ -166,6 +172,62 @@ def feed_item(event: dict) -> dict | None:
             "ttft_ms": event.get("ttft_ms", 0.0),
             "decide_ms": event.get("decide_ms", 0.0),
             "ts": event.get("iso_ts", "")}
+
+
+def policy_eval_shape(raw: dict) -> dict:
+    """Adapt the Phase-B learning/policy-eval.json artifact to the design
+    package's '/v1/learning/policy-eval' contract (design/mock-data.js).
+    Pure mapping — every value comes from the file, nothing synthesized;
+    the raw artifact stays readable at ?raw=1."""
+    hold = raw.get("holdout", {}) or {}
+
+    def side(which: str) -> dict:
+        return {"mttr_mean_s": hold.get(f"mttr_{which}_s", 0.0),
+                "escalations": hold.get(f"escalations_{which}", 0),
+                "probes": hold.get(f"probes_{which}", 0),
+                "unresolved": hold.get(f"unresolved_{which}", 0)}
+
+    # Phase-B curve entries are {config, train_reward_mean}; keep file order.
+    curve = [c.get("train_reward_mean") if isinstance(c, dict) else c
+             for c in raw.get("reward_curve", []) or []]
+    return {
+        "available": True,
+        "generated_at": raw.get("generated_at"),
+        "corpus_sha256": raw.get("corpus_sha256"),
+        "default_config": raw.get("default_config", {}),
+        "proposed_config": raw.get("proposed_config", {}),
+        "holdout": {"default": side("default"), "proposed": side("proposed")},
+        "reward_curve": curve,
+        "episodes_total": raw.get("episodes_total", 0),
+        "episodes_taped": raw.get("episodes_taped", 0),
+        "episodes_excluded": raw.get("episodes_excluded", 0),
+        "caveats": raw.get("caveats", []),
+    }
+
+
+def release_timeline(raw: dict) -> dict:
+    """Adapt the recorded deploy artifact (demo/deploy-timeline.json) to the
+    design package's '/v1/releases/timeline' shape. Fields the artifact never
+    recorded (version/strategy/tier_target) are null — never invented — and
+    the `source` note says so. `note` composes the artifact's real
+    error + agent diagnosis strings."""
+    attempts = []
+    for a in raw.get("attempts", []):
+        note = " — ".join(x for x in (a.get("error"), a.get("diagnosis")) if x)
+        attempts.append({"n": a.get("attempt"), "at": a.get("ts"),
+                         "stage": a.get("stage"), "outcome": a.get("outcome"),
+                         "note": note or None})
+    return {
+        "version": None,
+        "model": raw.get("model"),
+        "strategy": None,
+        "tier_target": None,
+        "target": raw.get("target"),   # the artifact's real deploy target
+        "attempts": attempts,
+        "source": "demo/deploy-timeline.json (recorded live deploy); "
+                  "version/strategy/tier_target were not recorded — null, "
+                  "not invented",
+    }
 
 
 def release_active(release, model: str) -> dict:

@@ -152,8 +152,13 @@
     '</article>';
   }).join("").replace(/border-bottom: 1px solid var\(--border\)">(?![\s\S]*border-bottom)/, 'border-bottom: none">');
 
-  /* Incident */
+  /* Incident (live systems may have none yet — render the honest empty state) */
   const inc = incidents[0];
+  if (!inc) {
+    document.getElementById("incident-meta").textContent = "none recorded";
+    document.getElementById("incident-body").innerHTML =
+      '<p class="caption" style="margin:0">No incidents recorded on this workload yet.</p>';
+  } else {
   document.getElementById("incident-meta").innerHTML =
     '<span class="num">' + esc(inc.id) + "</span> · " + esc(inc.agent) + (inc.live ? "" : " · resolved");
   const totalPhase = inc.phase_ms.detect + inc.phase_ms.diagnose + inc.phase_ms.resolve;
@@ -176,14 +181,15 @@
         inc.actions.map(a => '<span style="color:var(--text-muted)">' + a.t.padStart(7) + '</span>  ' + esc(a.text)).join("\n") +
       '</pre></div>' +
     '<div style="margin-top:var(--s-3)"><a href="' + esc(inc.postmortem_url) + '" class="caption">Postmortem →</a></div>';
+  }
 
   /* Policy summary (compact) */
   const d = evalr.holdout.default, pr = evalr.holdout.proposed;
-  const impr = ((pr.mttr_p50 - d.mttr_p50) / d.mttr_p50 * 100);
+  const impr = d.mttr_mean_s ? ((pr.mttr_mean_s - d.mttr_mean_s) / d.mttr_mean_s * 100) : 0;
   document.getElementById("policy-summary").innerHTML =
     '<div style="display:flex; gap:var(--s-5); align-items:baseline">' +
-      '<div><div class="caption">MTTR p50, held-out</div>' +
-        '<div class="num" style="font-size:var(--fs-lg)">' + d.mttr_p50.toFixed(1) + 's → <span style="color:var(--accent-strong); font-weight:600">' + pr.mttr_p50.toFixed(1) + 's</span></div></div>' +
+      '<div><div class="caption">MTTR mean, held-out</div>' +
+        '<div class="num" style="font-size:var(--fs-lg)">' + d.mttr_mean_s.toFixed(1) + 's → <span style="color:var(--accent-strong); font-weight:600">' + pr.mttr_mean_s.toFixed(1) + 's</span></div></div>' +
       '<div>' + deltaChip(impr) + '</div>' +
     '</div>' +
     '<div class="caption" style="margin-top:6px">Proposed config awaiting governed promote · ' + fmt.n(pr.probes) + ' probes vs ' + fmt.n(d.probes) + '</div>';
@@ -214,7 +220,13 @@
     }
     setTimeout(pushRow, 900 + Math.random() * 1400);
   }
-  // seed 6 rows instantly, then stream
+  // seed 6 rows instantly, then stream (live snapshot may be empty — no traffic yet)
+  if (!feed.length) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = '<td colspan="5" class="caption">no placement decisions recorded yet</td>';
+    tbody.appendChild(tr);
+    return;
+  }
   for (let i = 0; i < 6; i++) {
     const r = feed[idx % feed.length]; idx++;
     const tr = document.createElement("tr");

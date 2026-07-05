@@ -124,3 +124,75 @@ See `interactive-h100-us-east` in the mock (p99 91.2s, n=14).
 Designed against 1512px laptop width (page max 1460px, fluid below). Hero
 numbers 40–56px mono; the MTTR figure and incident phase bar are the largest
 elements on the board by design.
+
+## Deviations — 2026-07-04 (Phase C live integration)
+
+The package is now served live by the router at `/board/{page}` with
+`live-fetch.js` layered over `console.js` (no restyling; `fetchJSON` is the
+seam, exactly as designed). Deviations from the original mock contract:
+
+1. **`mttr_p50` → `mttr_mean_s`, label "MTTR p50" → "MTTR mean"**
+   (policy.html holdout panel + operate.html policy summary). The Phase-B
+   offline eval reports MTTR *means* over the holdout replay set, not p50s
+   — the board must not relabel a mean as a percentile.
+2. **`pools[].tier` + `pools[].slo` shipped** on `/v1/metrics/slo` (the one
+   contract addition already proposed above) — values come from the routing
+   policy's tier rules, config-driven, never hard-coded.
+3. **Placement feed is a snapshot, not SSE, on the board**: `live-fetch.js`
+   maps `/v1/placement/feed` → `/v1/placement/feed/snapshot` (last 30
+   decisions from the same event ring the SSE feed tails). The SSE endpoint
+   is unchanged for the devboard.
+4. **Real mutation previews** in `/v1/manage/options`: the mock's
+   illustrative `/v1/pools/*` mutations are replaced by the real Baseten
+   management-API calls with real ids (model `3ydn1e43`, deployment
+   `qvm1v4e`) — fleet = `autoscaling_settings` PATCH, model = `promote`
+   POST, spill = re-`POST /v1/policy/placement` (the no-op default choice).
+   Consequences cite measured sources ($0.90/hr T4; 148 s cold start per
+   docs/FRICTION_LOG.md #17; $/Mtok per deploy/baseten/model-apis.json).
+5. **Drain steps labeled `[built]` / `[roadmap]`**: built = sticky
+   placement exclusion + in-flight-count wait (`POST /v1/pools/{id}/drain`);
+   the mock's "migrate KV caches" weighted, KV-aware drain wording remains
+   as a `[roadmap]` step — it is not implemented and is not claimed to be.
+6. **`/v1/roadmap` stays the authored mock** (static product findings, per
+   the original contract note).
+7. **Writes are router-only** (not console-live) and **off by default**:
+   every `/v1/writes/*` returns 403 `{"error":"writes disabled"}` unless
+   `CONSOLE_ALLOW_WRITES=1`. The confirm modals render that 403 verbatim —
+   the visible refusal IS the designed default state, not an error state.
+8. **deploy.html**: added a `failed` outcome style (the real recorded
+   timeline has `failed` attempts, not `rolled_back`) and `?? "—"` guards
+   for `version`/`strategy`/`tier_target`, which the recorded artifact
+   never captured (the adapter returns null rather than inventing them).
+9. **policy.html**: empty-`reward_curve` guard ("no reward curve in this
+   corpus yet") and zero-MTTR guard — the live corpus has no taped episodes
+   yet and must render honestly instead of crashing.
+10. **operate.html**: honest empty states for live systems with no history —
+    "No incidents recorded on this workload yet" when `/v1/incidents` is
+    `[]` (the mock always had one) and "no placement decisions recorded
+    yet" when the feed snapshot is empty. Showing the mock's incident on a
+    healthy live board would be fabricated data.
+11. **mock-data.js** (2026-07-05): policy-eval holdout keys renamed
+    `mttr_p50` → `mttr_mean_s` to match deviation #1's relabel — the screens
+    read the new key, so the mock (standalone package and live-fallback path)
+    must ship it or the script throws mid-render.
+12. **live-fetch.js fallback badge** (2026-07-05): when a live endpoint
+    fails and a panel falls back to mock data, a fixed caption
+    "some panels: sample data (endpoint pending)" is appended to the body.
+    Not a package component; added so fallback data is never silently
+    presented as live (provenance rule). Uses the package's caption type
+    scale only.
+
+## Deviation — 2026-07-05 (STAFF-SKEPTIC Phase C gate)
+
+13. **Spill card copy corrected**: the spill option no longer claims
+    "placement already spills overflow". With prefix affinity enabled the
+    Model-API replica is a consistent-hash *peer* of the dedicated pool
+    (`policy.py` rings over all candidates), so it takes a hash share of new
+    prefixes in steady state — off-pool placement is not overflow-only, and
+    the risk line's "spill placements" counts all off-pool placements
+    (steady-state hash share + quarantine/capacity spill alike). The card now
+    says so, and labels overflow-only spill (dedicated-first with per-token
+    fallback) as roadmap. Also noted: the spill card's no-op mutation preview
+    re-POSTs the placement policy, but the spill behavior itself comes from
+    the endpoint list (a replica without a `pool` key bypasses placement
+    filtering), not from that policy document.

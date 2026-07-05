@@ -51,6 +51,11 @@ endpoints:
       provider: baseten-l4
       pool: baseten-l4        # placement-policy pool id
       url: http://pool-baseten:8080
+      # Baseten management-API ids for THIS deployment (real: the dedicated
+      # T4 deploy, docs/FRICTION_LOG.md #17 / evals/console-live). Consumed
+      # by manage-options previews and the gated writes path only.
+      model_id: 3ydn1e43
+      deployment_id: qvm1v4e
     # Baseten-native spill target: when the dedicated deployment degrades,
     # traffic spills to Baseten's serverless Model APIs — a genuinely
     # different failure domain on the same platform (the mux serves the
