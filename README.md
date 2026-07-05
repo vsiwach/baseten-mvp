@@ -120,13 +120,22 @@ python3 tools/kb/index_kb.py tools/kb/baseten   # after re-downloading llms-full
 python3 tools/kb/search.py tools/kb/baseten "engine builder quantization"
 ```
 
+## Onboarding skill
+
+`npx skills add vsiwach/baseten-mvp` installs **baseten-onboard**
+([skills/baseten-onboard/](skills/baseten-onboard/)) — a guided first-deploy
+journey for any agent client (Claude Code, Claude Desktop with the Baseten
+MCP connector, Cursor, …): intake → live-priced serverless-vs-dedicated
+decision → MCP deploy → readiness gate → first inference → handoff.
+
 ## Live console
 
 **https://baseten-reliability-console.vercel.app** — the bring-your-own-key
-read-only Reliability Console ([console-live/](console-live/)): paste a
-Baseten API key and see your production deployments' real metrics, SLO
-posture, and one grounded recommendation each. The key stays in the browser;
-a same-origin proxy forwards it per-request to api.baseten.co only.
+Reliability Console ([console-live/](console-live/), read-only by default
+with opt-in gated manage actions): paste a Baseten API key and see your
+deployments' real metrics, SLO posture, and one grounded recommendation
+each. The key stays in the browser; a same-origin proxy forwards it
+per-request to api.baseten.co only.
 
 ## Repository map
 
