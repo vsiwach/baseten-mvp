@@ -1,0 +1,779 @@
+{
+  "generated_at": "2026-07-04T23:46:12Z",
+  "corpus_sha256": "2e0930f45762b5784ded3596aa1c5e02328c6242a6a8273cd44ec3b045162b9c",
+  "default_config": {
+    "breach_rate_threshold": 0.5,
+    "min_samples": 4,
+    "probe_interval_s": 3.0,
+    "probes_to_reinstate": 2,
+    "cooldown_s": 30.0,
+    "probe_slo_ms": 500.0,
+    "escalate_after_failures": 5
+  },
+  "proposed_config": {
+    "breach_rate_threshold": 0.5,
+    "min_samples": 4,
+    "probe_interval_s": 1.0,
+    "probes_to_reinstate": 1,
+    "cooldown_s": 30.0,
+    "probe_slo_ms": 500.0,
+    "escalate_after_failures": 5
+  },
+  "holdout": {
+    "episodes": 12,
+    "mttr_default_s": 8.05,
+    "mttr_proposed_s": 2.005,
+    "unresolved_default": 0,
+    "unresolved_proposed": 0,
+    "escalations_default": 0,
+    "escalations_proposed": 0,
+    "probes_default": 24,
+    "probes_proposed": 12
+  },
+  "reward_curve": [
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": 7.841
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": 7.841
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": 7.841
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": 5.988
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": 5.988
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": 5.988
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": 5.832
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": 5.832
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": 5.832
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": 5.682
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": 4.758
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": 4.448
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": 4.446
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": 4.446
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": 4.062
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": 3.953
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": 3.953
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": 3.953
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": 3.799
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": 3.799
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": 3.799
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": 3.673
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": 2.574
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": 2.574
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": 2.574
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": 2.128
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": 1.948
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": 1.948
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": 1.948
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": 1.82
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": 1.64
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": 0.406
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": 0.406
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -0.515
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -0.823
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -0.902
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -2.052
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -2.052
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -2.052
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -2.052
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -2.052
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -2.052
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -3.442
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -3.442
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -3.442
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -3.596
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -3.596
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -5.827
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -6.773
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -6.773
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -6.773
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -7.854
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -7.854
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -7.854
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -8.01
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -8.01
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -8.01
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -8.052
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -8.052
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.5,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -8.052
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -9.107
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -9.107
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 1,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -9.107
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -9.261
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -9.261
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 1.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -9.261
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -9.443
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -9.443
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.3,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -9.443
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -10.34
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -10.34
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -10.34
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -12.802
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -12.802
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -12.802
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 3.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -12.802
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -12.802
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 2,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -12.802
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 5
+      },
+      "train_reward_mean": -16.494
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 3
+      },
+      "train_reward_mean": -16.494
+    },
+    {
+      "config": {
+        "breach_rate_threshold": 0.7,
+        "probe_interval_s": 6.0,
+        "probes_to_reinstate": 3,
+        "escalate_after_failures": 8
+      },
+      "train_reward_mean": -16.494
+    }
+  ],
+  "episodes_total": 110,
+  "episodes_taped": 25,
+  "episodes_excluded": 85,
+  "caveats": [
+    "sim-sourced drills only \u2014 no live traffic",
+    "binary fault oracle: probe succeeds iff after cleared_at",
+    "IMPROVEMENT IS PARTLY BY CONSTRUCTION: under the binary oracle no replayed probe ever fails after fault-clear, so post-detection MTTR reduces to probe_interval_s x probes_to_reinstate for ANY corpus \u2014 faster probing always wins here, and this eval cannot price the costs of aggressive probing (probe load, flapping, premature reinstatement)",
+    "reward() is reused verbatim from the agent's own shaping and is open-anchored (MTTR = resolve - open); detection latency is NOT priced, so candidates that would detect earlier/later than the tape's opening are not rewarded/penalized for it",
+    "escalate_after_failures is inert in this corpus (no replayed probe fails, so no escalations occur and its grid dimension produces ties)",
+    "breach-rate hold heuristic post-quarantine",
+    "no cross-pool spill modeling",
+    "cooldown_s and min_samples not exercised by this corpus",
+    "probe latencies are taped magnitudes, not remeasured",
+    "proposed probes_to_reinstate is LOWER than default \u2014 faster reinstatement trades away flap-robustness, and the binary fault oracle cannot model flapping pools; shadow-run on fresh drills before adopting"
+  ]
+}

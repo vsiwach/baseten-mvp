@@ -40,6 +40,19 @@ def test_reward_is_auditable_and_penalizes_failure():
                                     "escalation_penalty"}
 
 
+def test_tape_attaches_only_when_provided():
+    tape = {"clock": "monotonic-relative", "tick_interval_s": 2.0,
+            "fault": {"pool_id": "baseten-l4", "injected_at": 4.0,
+                      "cleared_at": 12.0, "kind": "latency"},
+            "ticks": [], "probes": []}
+    ep = episode_from_incident(INCIDENT, AgentConfig(), {}, tape=tape)
+    assert ep["taped"] is True
+    assert ep["tape"] == tape
+    untaped = episode_from_incident(INCIDENT, AgentConfig(), {})
+    assert untaped["taped"] is False
+    assert "tape" not in untaped
+
+
 def test_record_appends_jsonl_and_never_raises(tmp_path, monkeypatch):
     monkeypatch.setenv("LEARNING_DIR", str(tmp_path))
     path = record(INCIDENT, AgentConfig(), {"model": "qwen3-8b"})

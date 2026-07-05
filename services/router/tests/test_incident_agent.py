@@ -141,5 +141,57 @@ class EscalationTest(unittest.TestCase):
         self.assertNotIn("vllm-l4", logic.cases)
 
 
+class TapeRecorderTest(unittest.TestCase):
+    """Runner flight recorder: resolve slices the rolling ticks into a tape
+    only when the chaos handler recorded a ground-truth fault window."""
+
+    def _runner(self, windows):
+        from types import SimpleNamespace
+
+        from router_app.incident_agent import IncidentAgentRunner
+        state = SimpleNamespace(chaos_windows=windows)
+        runner = IncidentAgentRunner(state, interval_s=2.0)
+        for i in range(50):                      # ticks at t=60..158
+            runner._tape_ticks.append({
+                "t": 60.0 + 2.0 * i, "healthy_pools": 2,
+                "signals": [{"pool_id": "vllm-l4", "url": "http://a",
+                             "usable": True, "healthz_ok": True,
+                             "breach_rate": 0.0, "samples": 5}]})
+        runner._open_ts["vllm-l4"] = 100.0
+        runner._tape_probes = [
+            {"t": 130.0, "pool_id": "vllm-l4", "ok": False,
+             "latency_ms": 2612.0},
+            {"t": 131.0, "pool_id": "other", "ok": True, "latency_ms": 40.0},
+            {"t": 163.0, "pool_id": "vllm-l4", "ok": True,
+             "latency_ms": 120.0},
+        ]
+        return runner
+
+    def test_tape_built_and_rebased_when_window_known(self):
+        windows = {"vllm-l4": {"injected_at": 104.0, "cleared_at": 161.5,
+                               "kind": "latency"}}
+        tape = self._runner(windows)._build_tape("vllm-l4")
+        # slice starts at open − 30s = 70.0, rebased to t=0
+        self.assertEqual(tape["ticks"][0]["t"], 0.0)
+        self.assertEqual(tape["fault"], {"pool_id": "vllm-l4",
+                                         "injected_at": 34.0,
+                                         "cleared_at": 91.5,
+                                         "kind": "latency"})
+        # probes: this pool only, times rebased
+        self.assertEqual([p["t"] for p in tape["probes"]], [60.0, 93.0])
+        self.assertEqual(tape["tick_interval_s"], 2.0)
+        self.assertEqual(tape["clock"], "monotonic-relative")
+        self.assertIn("anchor_utc", tape)
+        # window consumed so a later live incident is never mis-taped
+        self.assertEqual(windows, {})
+
+    def test_no_tape_without_fault_window(self):
+        self.assertIsNone(self._runner({})._build_tape("vllm-l4"))
+        open_window = {"vllm-l4": {"injected_at": 104.0, "cleared_at": None,
+                                   "kind": "latency"}}
+        self.assertIsNone(
+            self._runner(open_window)._build_tape("vllm-l4"))
+
+
 if __name__ == "__main__":
     unittest.main()

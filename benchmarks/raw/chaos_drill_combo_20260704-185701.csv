@@ -1,0 +1,7 @@
+t_rel_s,event,detail
+0.0,load_start,"1.0 rps streaming, model=qwen3-8b"
+4.03,inject,"{""latency_ms"": 2000.0, ""error_rate"": 0.6}"
+110.85,detected,INC-0012: baseten-l4 breaching serving SLO — 100% of recent requests
+110.85,quarantined,traffic spilled to healthy pool
+110.88,cleared,fault removed — agent must now verify
+119.02,resolved,MTTR 8.1s (agent=True)

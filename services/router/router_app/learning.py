@@ -47,9 +47,12 @@ def reward(outcome: dict) -> dict:
     return {"total": round(sum(shaping.values()), 2), "shaping": shaping}
 
 
-def episode_from_incident(incident: dict, config, context: dict) -> dict:
+def episode_from_incident(incident: dict, config, context: dict,
+                          tape: dict | None = None) -> dict:
     """Project a resolved incident (IncidentStore public shape) + the active
-    AgentConfig into one training episode."""
+    AgentConfig into one training episode. `tape` (optional) is the flight
+    recorder slice built by IncidentAgentRunner when the fault window is
+    known (chaos-injected) — it makes the episode offline-replayable."""
     actions = incident.get("actions", [])
     probes = [{"ok": m.group(1) == "passed", "ms": int(m.group(2))}
               for a in actions for m in [_PROBE.search(a)] if m]
@@ -63,10 +66,11 @@ def episode_from_incident(incident: dict, config, context: dict) -> dict:
         "probes_run": len(probes),
         "probes_failed": sum(1 for p in probes if not p["ok"]),
     }
-    return {
+    episode = {
         "episode_id": f"ep-{incident['id'].lower()}-{int(incident.get('ts', 0))}",
         "recorded_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "source": "live-incident",
+        "taped": tape is not None,
         "policy": asdict(config),
         "context": context,
         "incident": {"id": incident["id"], "title": incident["title"],
@@ -77,9 +81,13 @@ def episode_from_incident(incident: dict, config, context: dict) -> dict:
         "outcome": outcome,
         "reward": reward(outcome),
     }
+    if tape is not None:
+        episode["tape"] = tape
+    return episode
 
 
-def record(incident: dict, config, context: dict) -> Path | None:
+def record(incident: dict, config, context: dict,
+           tape: dict | None = None) -> Path | None:
     """Append one episode; never raise into the agent loop."""
     path = episodes_path()
     if path is None or incident is None:
@@ -87,8 +95,8 @@ def record(incident: dict, config, context: dict) -> Path | None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "a") as f:
-            f.write(json.dumps(
-                episode_from_incident(incident, config, context)) + "\n")
+            f.write(json.dumps(episode_from_incident(
+                incident, config, context, tape=tape)) + "\n")
         return path
     except Exception:  # noqa: BLE001 — learning must never break serving
         return None

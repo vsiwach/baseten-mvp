@@ -19,7 +19,8 @@ Split for testability: IncidentAgentLogic is pure and clock-injected
 """
 
 import threading
-from dataclasses import dataclass, field
+from collections import deque
+from dataclasses import asdict, dataclass, field
 
 
 @dataclass
@@ -222,6 +223,12 @@ class IncidentAgentRunner:
         self._ids: dict[str, str] = {}     # pool_id -> incident id
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        # flight recorder: rolling signal ticks + probe results, sliced into
+        # a replayable "tape" when an incident with a known chaos-injected
+        # fault window resolves (learning/README.md; replay.py re-runs it)
+        self._tape_ticks: deque = deque(maxlen=120)
+        self._tape_probes: list[dict] = []
+        self._open_ts: dict[str, float] = {}   # pool_id -> case open (mono)
 
     # ---- signal assembly ---------------------------------------------------
 
@@ -267,6 +274,7 @@ class IncidentAgentRunner:
             if e["op"] == "open":
                 inc = self.state.incidents.open(e["title"], agent=True)
                 self._ids[pool] = inc["id"]
+                self._open_ts[pool] = now
                 if self.logic.cases.get(pool):
                     self.logic.cases[pool].incident_id = inc["id"]
             elif e["op"] == "act":
@@ -289,6 +297,8 @@ class IncidentAgentRunner:
                                               "allowlist remedies")
             elif e["op"] == "probe":
                 ok, ms = self.probe(e["url"])
+                self._tape_probes.append({"t": now, "pool_id": pool,
+                                          "ok": ok, "latency_ms": ms})
                 self.execute(now, self.logic.record_probe(now, pool, ok, ms))
             elif e["op"] == "resolve":
                 if pool in self._ids:
@@ -296,13 +306,60 @@ class IncidentAgentRunner:
                         self._ids.pop(pool),
                         postmortem_url=f"/v1/incidents?focus={pool}")
                     # every resolved incident becomes one RL episode —
-                    # policy params + trajectory + shaped reward (learning.py)
+                    # policy params + trajectory + shaped reward (learning.py).
+                    # If the fault window is known (chaos-injected), the
+                    # episode also carries a replayable tape.
                     from router_app import learning
                     learning.record(inc, self.logic.config, {
                         "model": self.state.devboard_model(),
                         "pool": pool,
-                    })
+                    }, tape=self._build_tape(pool))
+                self._tape_probes = [p for p in self._tape_probes
+                                     if p["pool_id"] != pool]
+                self._open_ts.pop(pool, None)
             _t.sleep(0)  # yield between effects
+
+    def _build_tape(self, pool: str) -> dict | None:
+        """Slice the flight recorder into a replayable tape for one resolved
+        incident. Only chaos-injected faults have a ground-truth window
+        (state.chaos_windows, written by the /v1/dev/chaos handler); live
+        incidents without one stay untaped. Times are monotonic-relative:
+        t=0 at the first retained tick; anchor_utc is that instant's wall
+        time. Consumes the chaos window so a later live incident on the same
+        pool is never taped against a stale fault."""
+        import time as _t
+        windows = getattr(self.state, "chaos_windows", {})
+        window = windows.get(pool)
+        if not window or window.get("cleared_at") is None:
+            return None
+        open_ts = self._open_ts.get(pool)
+        cutoff = (open_ts if open_ts is not None
+                  else window["injected_at"]) - 30.0
+        ticks = [tk for tk in self._tape_ticks if tk["t"] >= cutoff]
+        if not ticks:
+            return None
+        t0 = ticks[0]["t"]
+        anchor = _t.time() - (_t.monotonic() - t0)
+        windows.pop(pool, None)
+        return {
+            "clock": "monotonic-relative",
+            "anchor_utc": _t.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                      _t.gmtime(anchor)),
+            "tick_interval_s": self.interval_s,
+            "fault": {"pool_id": pool,
+                      "injected_at": round(window["injected_at"] - t0, 3),
+                      "cleared_at": round(window["cleared_at"] - t0, 3),
+                      "kind": window.get("kind", "latency")},
+            "ticks": [{"t": round(tk["t"] - t0, 3),
+                       "healthy_pools": tk["healthy_pools"],
+                       "signals": [dict(s) for s in tk["signals"]]}
+                      for tk in ticks],
+            "probes": [{"t": round(p["t"] - t0, 3), "pool_id": p["pool_id"],
+                        "ok": p["ok"],
+                        "latency_ms": round(p["latency_ms"], 1)}
+                       for p in self._tape_probes
+                       if p["pool_id"] == pool and p["t"] >= cutoff],
+        }
 
     def _url_of(self, pool_id: str):
         from router_app import config as cfg
@@ -349,6 +406,9 @@ class IncidentAgentRunner:
         import time as _t
         now = _t.monotonic()
         signals, healthy = self.signals(now)
+        # flight recorder: resolve slices this rolling window into a tape
+        self._tape_ticks.append({"t": now, "healthy_pools": healthy,
+                                 "signals": [asdict(s) for s in signals]})
         self.execute(now, self.logic.step(now, signals, healthy))
 
     def start(self) -> None:
